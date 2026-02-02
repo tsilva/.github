@@ -18,12 +18,12 @@ jobs:
 
   publish-pypi:
     if: inputs.publish_to_pypi
-    needs: sync-description
+    needs: pii-scan
     uses: tsilva/.github/.github/workflows/publish-pypi.yml@main
     secrets: inherit
 
   create-release:
     if: '!inputs.publish_to_pypi'
-    needs: sync-description
+    needs: pii-scan
     uses: tsilva/.github/.github/workflows/create-release.yml@main
     secrets: inherit

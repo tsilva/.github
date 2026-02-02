@@ -96,6 +96,8 @@ jobs:
               },
           }
 
+          COMPILED_PATTERNS = {name: re.compile(info["pattern"]) for name, info in PATTERNS.items()}
+
           SKIP_EXTENSIONS = {
               ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",
               ".mp3", ".mp4", ".wav", ".avi", ".mov",
@@ -161,7 +163,7 @@ jobs:
                   return findings
               lines = content.splitlines()
               for pattern_name, pattern_info in PATTERNS.items():
-                  regex = re.compile(pattern_info["pattern"])
+                  regex = COMPILED_PATTERNS[pattern_name]
                   for line_num, line in enumerate(lines, 1):
                       for match in regex.finditer(line):
                           findings.append({
