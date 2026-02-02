@@ -20,5 +20,5 @@ jobs:
         with:
           cache: true
       - run: uv sync
-      - run: ruff check .
-      - run: ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
