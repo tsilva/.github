@@ -2,6 +2,10 @@ name: Release
 
 on:
   workflow_call:
+    inputs:
+      publish_to_pypi:
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -10,7 +14,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    environment: pypi
+    environment: ${{ inputs.publish_to_pypi && 'pypi' || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Get version
@@ -34,16 +38,21 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Setup uv
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false' && inputs.publish_to_pypi
         uses: astral-sh/setup-uv@v4
       - name: Build package
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false' && inputs.publish_to_pypi
         run: uv build
       - name: Create release
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false' && inputs.publish_to_pypi
         run: gh release create "${{ steps.version.outputs.tag }}" --title "${{ steps.version.outputs.tag }}" --generate-notes dist/*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release (no artifacts)
+        if: steps.check.outputs.exists == 'false' && !inputs.publish_to_pypi
+        run: gh release create "${{ steps.version.outputs.tag }}" --title "${{ steps.version.outputs.tag }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish to PyPI
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false' && inputs.publish_to_pypi
         uses: pypa/gh-action-pypi-publish@release/v1
