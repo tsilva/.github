@@ -74,7 +74,7 @@ Chains the above workflows together. Maintains the same interface as before.
 
 #### Flow
 
-1. Calls `pii-scan.yml` to scan for credentials and secrets
+1. Runs `lint.yml`, `test.yml`, `typecheck.yml`, and `pii-scan.yml` in parallel
 2. Calls `sync-repo-description.yml` to update repo description
 3. If `publish_to_pypi`: calls `publish-pypi.yml`
 4. If not `publish_to_pypi`: calls `create-release.yml`
