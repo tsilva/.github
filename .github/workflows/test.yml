@@ -20,4 +20,4 @@ jobs:
         with:
           cache: true
       - run: uv sync
-      - run: uv run pytest
+      - run: uv run --with pytest pytest

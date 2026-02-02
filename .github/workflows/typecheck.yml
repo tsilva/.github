@@ -20,4 +20,4 @@ jobs:
         with:
           cache: true
       - run: uv sync
-      - run: uv run mypy .
+      - run: uv run --with mypy mypy .
