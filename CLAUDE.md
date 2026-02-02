@@ -43,6 +43,7 @@ Runs tests with [pytest](https://docs.pytest.org/).
 
 - **Inputs:** `python-version` (string, default `"3.12"`)
 - **Timeout:** 10 minutes
+- Gracefully skips when no tests are found (pytest exit code 5)
 
 ### `release.yml` (composer)
 
