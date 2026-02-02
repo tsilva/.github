@@ -1,0 +1,262 @@
+name: PII Scanner
+
+on:
+  workflow_call:
+    inputs:
+      severity_threshold:
+        description: "Minimum severity to fail the workflow (critical, high, medium)"
+        type: string
+        default: "high"
+      respect_gitignore:
+        description: "Whether to respect .gitignore patterns"
+        type: boolean
+        default: true
+
+jobs:
+  pii-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run PII scanner
+        id: scan
+        shell: python
+        env:
+          INPUT_RESPECT_GITIGNORE: ${{ inputs.respect_gitignore }}
+        run: |
+          import fnmatch
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          # Credential detection patterns
+          PATTERNS = {
+              "aws_access_key": {
+                  "pattern": r"AKIA[0-9A-Z]{16}",
+                  "description": "AWS Access Key ID",
+                  "severity": "high",
+              },
+              "aws_secret_key": {
+                  "pattern": r"(?i)aws_secret_access_key\s*[=:]\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?",
+                  "description": "AWS Secret Access Key",
+                  "severity": "critical",
+              },
+              "github_token": {
+                  "pattern": r"gh[ps]_[A-Za-z0-9_]{36,}",
+                  "description": "GitHub Personal Access Token",
+                  "severity": "critical",
+              },
+              "github_oauth": {
+                  "pattern": r"gho_[A-Za-z0-9_]{36,}",
+                  "description": "GitHub OAuth Token",
+                  "severity": "critical",
+              },
+              "private_key": {
+                  "pattern": r"-----BEGIN\s+(?:RSA|DSA|EC|OPENSSH|PGP)?\s*PRIVATE KEY-----",
+                  "description": "Private Key",
+                  "severity": "critical",
+              },
+              "generic_password": {
+                  "pattern": r"(?i)(?:password|passwd|pwd)\s*[=:]\s*['\"]([^'\"]{8,})['\"]",
+                  "description": "Hardcoded Password",
+                  "severity": "high",
+              },
+              "generic_secret": {
+                  "pattern": r"(?i)(?:secret|api_key|apikey|access_token)\s*[=:]\s*['\"]([^'\"]{8,})['\"]",
+                  "description": "Hardcoded Secret/API Key",
+                  "severity": "high",
+              },
+              "database_url": {
+                  "pattern": r"(?i)(?:postgres|mysql|mongodb|redis)://[^:]+:[^@]+@[^\s]+",
+                  "description": "Database URL with Credentials",
+                  "severity": "critical",
+              },
+              "slack_webhook": {
+                  "pattern": r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+",
+                  "description": "Slack Webhook URL",
+                  "severity": "high",
+              },
+              "stripe_key": {
+                  "pattern": r"sk_(?:live|test)_[A-Za-z0-9]{24,}",
+                  "description": "Stripe Secret Key",
+                  "severity": "critical",
+              },
+              "jwt_token": {
+                  "pattern": r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
+                  "description": "JWT Token",
+                  "severity": "medium",
+              },
+          }
+
+          SKIP_EXTENSIONS = {
+              ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",
+              ".mp3", ".mp4", ".wav", ".avi", ".mov",
+              ".zip", ".tar", ".gz", ".rar", ".7z",
+              ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+              ".pyc", ".pyo", ".so", ".dll", ".exe",
+              ".woff", ".woff2", ".ttf", ".eot",
+              ".lock", ".sum",
+          }
+
+          SKIP_DIRS = {
+              ".git", "node_modules", "__pycache__", ".venv", "venv",
+              "env", ".tox", ".pytest_cache", ".mypy_cache",
+              "dist", "build", ".eggs", "*.egg-info",
+          }
+
+          SEVERITY_LEVELS = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+
+
+          def parse_gitignore(repo_path):
+              gitignore_path = repo_path / ".gitignore"
+              patterns = []
+              if gitignore_path.exists():
+                  try:
+                      content = gitignore_path.read_text(encoding="utf-8", errors="ignore")
+                      for line in content.splitlines():
+                          line = line.strip()
+                          if line and not line.startswith("#"):
+                              patterns.append(line)
+                  except Exception:
+                      pass
+              return patterns
+
+
+          def is_ignored(file_path, repo_path, gitignore_patterns):
+              rel_path = str(file_path.relative_to(repo_path))
+              for pattern in gitignore_patterns:
+                  if pattern.endswith("/"):
+                      dir_pattern = pattern.rstrip("/")
+                      if fnmatch.fnmatch(rel_path, f"{dir_pattern}/*") or fnmatch.fnmatch(rel_path, f"*/{dir_pattern}/*"):
+                          return True
+                  if fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(file_path.name, pattern):
+                      return True
+                  if pattern.startswith("**/"):
+                      if fnmatch.fnmatch(rel_path, pattern[3:]) or fnmatch.fnmatch(file_path.name, pattern[3:]):
+                          return True
+              return False
+
+
+          def should_skip_file(file_path):
+              return file_path.suffix.lower() in SKIP_EXTENSIONS or file_path.name.startswith(".")
+
+
+          def should_skip_dir(dir_name):
+              return any(fnmatch.fnmatch(dir_name, p) for p in SKIP_DIRS)
+
+
+          def scan_file(file_path):
+              findings = []
+              try:
+                  content = file_path.read_text(encoding="utf-8", errors="ignore")
+              except Exception:
+                  return findings
+              lines = content.splitlines()
+              for pattern_name, pattern_info in PATTERNS.items():
+                  regex = re.compile(pattern_info["pattern"])
+                  for line_num, line in enumerate(lines, 1):
+                      for match in regex.finditer(line):
+                          findings.append({
+                              "pattern": pattern_name,
+                              "description": pattern_info["description"],
+                              "severity": pattern_info["severity"],
+                              "line": line_num,
+                              "match": match.group(0)[:50] + "..." if len(match.group(0)) > 50 else match.group(0),
+                          })
+              return findings
+
+
+          def scan_repo(repo_path, respect_gitignore=True):
+              repo_path = Path(repo_path).resolve()
+              if not repo_path.exists():
+                  return {"error": f"Path does not exist: {repo_path}"}
+              gitignore_patterns = parse_gitignore(repo_path) if respect_gitignore else []
+              results = {
+                  "repo": str(repo_path),
+                  "files_scanned": 0,
+                  "files_with_findings": 0,
+                  "total_findings": 0,
+                  "findings": {},
+                  "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+              }
+              for file_path in repo_path.rglob("*"):
+                  if not file_path.is_file():
+                      continue
+                  if any(should_skip_dir(part) for part in file_path.relative_to(repo_path).parts):
+                      continue
+                  if should_skip_file(file_path):
+                      continue
+                  if respect_gitignore and is_ignored(file_path, repo_path, gitignore_patterns):
+                      continue
+                  results["files_scanned"] += 1
+                  file_findings = scan_file(file_path)
+                  if file_findings:
+                      rel_path = str(file_path.relative_to(repo_path))
+                      results["findings"][rel_path] = file_findings
+                      results["files_with_findings"] += 1
+                      results["total_findings"] += len(file_findings)
+                      for finding in file_findings:
+                          results["by_severity"][finding["severity"]] += 1
+              return results
+
+
+          # --- Main ---
+          repo_path = Path(os.environ.get("GITHUB_WORKSPACE", "."))
+          respect_gitignore = os.environ.get("INPUT_RESPECT_GITIGNORE", "true").lower() == "true"
+          threshold = "${{ inputs.severity_threshold }}"
+          threshold_level = SEVERITY_LEVELS.get(threshold, 2)
+
+          results = scan_repo(repo_path, respect_gitignore=respect_gitignore)
+
+          if "error" in results:
+              print(f"::error::{results['error']}")
+              sys.exit(1)
+
+          # Write job summary
+          summary = os.environ.get("GITHUB_STEP_SUMMARY", "")
+          if summary:
+              with open(summary, "w") as f:
+                  f.write("## PII Scanner Results\n\n")
+                  f.write(f"| Metric | Count |\n|---|---|\n")
+                  f.write(f"| Files scanned | {results['files_scanned']} |\n")
+                  f.write(f"| Files with findings | {results['files_with_findings']} |\n")
+                  f.write(f"| Total findings | {results['total_findings']} |\n\n")
+
+                  if results["total_findings"] > 0:
+                      f.write("### Findings by Severity\n\n")
+                      for sev in ["critical", "high", "medium", "low"]:
+                          count = results["by_severity"][sev]
+                          if count > 0:
+                              icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵"}[sev]
+                              f.write(f"- {icon} **{sev.upper()}**: {count}\n")
+                      f.write("\n### Details\n\n")
+                      for file_path, findings in results["findings"].items():
+                          f.write(f"#### `{file_path}`\n\n")
+                          f.write("| Line | Description | Severity |\n|---|---|---|\n")
+                          for finding in findings:
+                              f.write(f"| {finding['line']} | {finding['description']} | {finding['severity']} |\n")
+                          f.write("\n")
+                  else:
+                      f.write("✅ No findings detected.\n")
+
+          # Write JSON output
+          print(json.dumps(results, indent=2))
+
+          # Determine failure based on threshold
+          failed = False
+          for sev, level in SEVERITY_LEVELS.items():
+              if level >= threshold_level and results["by_severity"].get(sev, 0) > 0:
+                  failed = True
+                  break
+
+          if failed:
+              print(f"\n::error::PII scan found findings at or above '{threshold}' severity threshold.")
+              sys.exit(1)
