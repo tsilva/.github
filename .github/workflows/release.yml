@@ -7,6 +7,10 @@ on:
         type: boolean
         default: true
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   pii-scan:
     uses: tsilva/.github/.github/workflows/pii-scan.yml@main

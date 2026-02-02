@@ -3,9 +3,13 @@ name: Sync Repo Description
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Update repo description

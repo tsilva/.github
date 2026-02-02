@@ -1,0 +1,33 @@
+name: Check Version
+description: Extract version from pyproject.toml and check if git tag exists
+
+outputs:
+  version:
+    description: Version string from pyproject.toml
+    value: ${{ steps.version.outputs.version }}
+  tag:
+    description: Git tag (v-prefixed version)
+    value: ${{ steps.version.outputs.tag }}
+  tag_exists:
+    description: Whether the tag already exists
+    value: ${{ steps.check.outputs.exists }}
+
+runs:
+  using: composite
+  steps:
+    - name: Get version
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+    - name: Check if tag exists
+      id: check
+      shell: bash
+      run: |
+        if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+        fi
