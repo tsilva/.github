@@ -16,9 +16,7 @@
 - 📝 **Repo description sync** — keeps GitHub description in sync with `pyproject.toml`
 - 🛡️ **Secret scanning** — detect credentials and secrets using [gitleaks](https://github.com/gitleaks/gitleaks)
 - 🔒 **Pre-commit hook** — run gitleaks locally before pushing
-- 🧹 **Linting & formatting** — ruff check and format via reusable workflow
 - 🧪 **Testing** — pytest via reusable workflow
-- 🔍 **Type checking** — mypy via reusable workflow
 - 🎯 **One-line integration** — `uses: tsilva/.github/...@main` and `secrets: inherit`
 
 ## 📋 Workflows
@@ -29,9 +27,7 @@
 | `sync-repo-description.yml` | Sync repo description | Reads from `pyproject.toml` |
 | `publish-pypi.yml` | Build, tag, release, publish | Uses `uv build` + trusted publishing |
 | `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
-| `lint.yml` | Lint and format check | Uses ruff via uv |
 | `test.yml` | Run tests | Uses pytest via uv |
-| `typecheck.yml` | Type checking | Uses mypy via uv |
 | `pii-scan.yml` | Scan for credentials/secrets | Uses gitleaks-action v2 |
 
 ### `release.yml` (Composer)
@@ -102,12 +98,8 @@ on:
   pull_request:
 
 jobs:
-  lint:
-    uses: tsilva/.github/.github/workflows/lint.yml@main
   test:
     uses: tsilva/.github/.github/workflows/test.yml@main
-  typecheck:
-    uses: tsilva/.github/.github/workflows/typecheck.yml@main
   pii-scan:
     uses: tsilva/.github/.github/workflows/pii-scan.yml@main
 ```

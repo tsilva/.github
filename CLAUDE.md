@@ -37,24 +37,9 @@ Scans repository for credentials and secrets using [gitleaks-action v2](https://
 - Produces GitHub Step Summary output natively
 - Configured via `.gitleaks.toml` in caller repos (optional)
 
-### `lint.yml`
-
-Runs [ruff](https://github.com/astral-sh/ruff) linting and format checking.
-
-- **Inputs:** `python-version` (string, default `"3.12"`)
-- **Timeout:** 5 minutes
-- Runs `ruff check .` and `ruff format --check .`
-
 ### `test.yml`
 
 Runs tests with [pytest](https://docs.pytest.org/).
-
-- **Inputs:** `python-version` (string, default `"3.12"`)
-- **Timeout:** 10 minutes
-
-### `typecheck.yml`
-
-Runs type checking with [mypy](https://mypy-lang.org/).
 
 - **Inputs:** `python-version` (string, default `"3.12"`)
 - **Timeout:** 10 minutes
@@ -74,7 +59,7 @@ Chains the above workflows together. Maintains the same interface as before.
 
 #### Flow
 
-1. Runs `lint.yml`, `test.yml`, `typecheck.yml`, and `pii-scan.yml` in parallel
+1. Runs `test.yml` and `pii-scan.yml` in parallel
 2. Calls `sync-repo-description.yml` to update repo description
 3. If `publish_to_pypi`: calls `publish-pypi.yml`
 4. If not `publish_to_pypi`: calls `create-release.yml`
@@ -128,22 +113,8 @@ on:
   pull_request:
 
 jobs:
-  lint:
-    uses: tsilva/.github/.github/workflows/lint.yml@main
   test:
     uses: tsilva/.github/.github/workflows/test.yml@main
-  typecheck:
-    uses: tsilva/.github/.github/workflows/typecheck.yml@main
-```
-
-With a custom Python version:
-
-```yaml
-jobs:
-  lint:
-    uses: tsilva/.github/.github/workflows/lint.yml@main
-    with:
-      python-version: "3.11"
 ```
 
 ### Dependabot

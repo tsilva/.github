@@ -12,31 +12,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  lint:
-    uses: tsilva/.github/.github/workflows/lint.yml@main
-
   test:
     uses: tsilva/.github/.github/workflows/test.yml@main
-
-  typecheck:
-    uses: tsilva/.github/.github/workflows/typecheck.yml@main
 
   pii-scan:
     uses: tsilva/.github/.github/workflows/pii-scan.yml@main
 
   sync-description:
-    needs: [lint, test, typecheck, pii-scan]
+    needs: [test, pii-scan]
     uses: tsilva/.github/.github/workflows/sync-repo-description.yml@main
     secrets: inherit
 
   publish-pypi:
     if: inputs.publish_to_pypi
-    needs: [lint, test, typecheck, pii-scan]
+    needs: [test, pii-scan]
     uses: tsilva/.github/.github/workflows/publish-pypi.yml@main
     secrets: inherit
 
   create-release:
     if: '!inputs.publish_to_pypi'
-    needs: [lint, test, typecheck, pii-scan]
+    needs: [test, pii-scan]
     uses: tsilva/.github/.github/workflows/create-release.yml@main
     secrets: inherit
