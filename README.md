@@ -5,7 +5,7 @@
 
   ⚙️ Shared reusable GitHub Actions workflows for the `tsilva` organization — standardized CI/CD across every repo
 
-  [Workflows](#-workflows) · [Usage](#-usage) · [PII Scanning](#pii-scanyml)
+  [Workflows](#-workflows) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
 </div>
 
 ## ✨ Features
@@ -14,7 +14,8 @@
 - 📦 **PyPI publishing** — build, release, and publish via trusted publishing
 - 🏷️ **Auto-tagging** — version extracted from `pyproject.toml`, skips existing tags
 - 📝 **Repo description sync** — keeps GitHub description in sync with `pyproject.toml`
-- 🛡️ **PII scanning** — detect credentials and secrets with zero dependencies
+- 🛡️ **Secret scanning** — detect credentials and secrets using [gitleaks](https://github.com/gitleaks/gitleaks)
+- 🔒 **Pre-commit hook** — run gitleaks locally before pushing
 - 🎯 **One-line integration** — `uses: tsilva/.github/...@main` and `secrets: inherit`
 
 ## 📋 Workflows
@@ -25,7 +26,7 @@
 | `sync-repo-description.yml` | Sync repo description | Reads from `pyproject.toml` |
 | `publish-pypi.yml` | Build, tag, release, publish | Uses `uv build` + trusted publishing |
 | `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
-| `pii-scan.yml` | Scan for credentials/secrets | Pure-Python, configurable severity |
+| `pii-scan.yml` | Scan for credentials/secrets | Uses gitleaks-action v2 |
 
 ### `release.yml` (Composer)
 
@@ -45,13 +46,9 @@ The main entry point for most repos. Chains individual workflows together.
 
 ### `pii-scan.yml`
 
-Scans repository files for credentials and sensitive data. Embeds a pure-Python scanner inline — no external dependencies.
+Scans repository for credentials and secrets using [gitleaks-action v2](https://github.com/gitleaks/gitleaks-action). Scans full git history and produces GitHub Step Summary output natively.
 
-**Inputs:**
-- `severity_threshold` (string, default: `"high"`) — minimum severity to fail (`critical`, `high`, `medium`)
-- `respect_gitignore` (boolean, default: `true`)
-
-**Detected patterns:** AWS keys, GitHub tokens, private keys, database URLs, Stripe keys, Slack webhooks, JWTs, hardcoded passwords/secrets
+Caller repos can customize detection rules via a `.gitleaks.toml` config file.
 
 ## 🚀 Usage
 
@@ -103,14 +100,28 @@ jobs:
     uses: tsilva/.github/.github/workflows/pii-scan.yml@main
 ```
 
-With custom threshold:
+## 🔒 Pre-commit Hook
+
+This repo provides a [pre-commit](https://pre-commit.com/) hook for running gitleaks locally.
+
+Add to your `.pre-commit-config.yaml`:
 
 ```yaml
-  pii-scan:
-    uses: tsilva/.github/.github/workflows/pii-scan.yml@main
-    with:
-      severity_threshold: critical
+repos:
+  - repo: https://github.com/tsilva/.github
+    rev: main
+    hooks:
+      - id: gitleaks
 ```
+
+Then:
+
+```bash
+pre-commit install
+pre-commit run gitleaks --all-files
+```
+
+Requires Go installed locally (gitleaks is built from source by pre-commit).
 
 ## ⚙️ Requirements
 

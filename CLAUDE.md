@@ -31,14 +31,11 @@ Extracts version from `pyproject.toml`, checks if tag exists, and creates a GitH
 
 ### `pii-scan.yml`
 
-Scans repository files for credentials and sensitive data (PII). Embeds a pure-Python scanner inline — no external dependencies.
+Scans repository for credentials and secrets using [gitleaks-action v2](https://github.com/gitleaks/gitleaks-action).
 
-- **Inputs:**
-  - `severity_threshold` (string, default: `"high"`) — minimum severity to fail (`critical`, `high`, `medium`)
-  - `respect_gitignore` (boolean, default: `true`)
-- **Detected patterns:** AWS keys, GitHub tokens, private keys, database URLs, Stripe keys, Slack webhooks, JWTs, hardcoded passwords/secrets
-- **Exit behavior:** Fails the workflow if findings meet or exceed the severity threshold
-- **Output:** JSON results to stdout + formatted table in GitHub Step Summary
+- Uses `fetch-depth: 0` to scan full git history
+- Produces GitHub Step Summary output natively
+- Configured via `.gitleaks.toml` in caller repos (optional)
 
 ### `release.yml` (composer)
 
@@ -102,14 +99,30 @@ jobs:
     uses: tsilva/.github/.github/workflows/pii-scan.yml@main
 ```
 
-With custom threshold:
+## Pre-commit Hook
+
+This repo provides a [pre-commit](https://pre-commit.com/) hook for running gitleaks locally.
+
+### Caller repo setup
+
+Add to `.pre-commit-config.yaml`:
 
 ```yaml
-  pii-scan:
-    uses: tsilva/.github/.github/workflows/pii-scan.yml@main
-    with:
-      severity_threshold: critical
+repos:
+  - repo: https://github.com/tsilva/.github
+    rev: main
+    hooks:
+      - id: gitleaks
 ```
+
+Then:
+
+```bash
+pre-commit install
+pre-commit run gitleaks --all-files
+```
+
+Requires Go installed locally (gitleaks is built from source by pre-commit).
 
 ## Maintenance
 
