@@ -122,7 +122,7 @@ pre-commit install
 pre-commit run gitleaks --all-files
 ```
 
-Requires Go installed locally (gitleaks is built from source by pre-commit).
+Requires [gitleaks](https://github.com/gitleaks/gitleaks#installing) installed locally.
 
 ## Maintenance
 

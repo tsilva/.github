@@ -2,6 +2,5 @@
   name: gitleaks
   description: Detect hardcoded secrets using gitleaks
   entry: gitleaks git --pre-commit --redact --verbose
-  language: golang
-  additional_dependencies: ["github.com/gitleaks/gitleaks/v8@v8.24.0"]
+  language: system
   pass_filenames: false
