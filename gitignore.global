@@ -1,0 +1,23 @@
+# Standard gitignore rules for tsilva organization
+# Used by scripts/sync-gitignore.sh
+
+# Claude Code
+.claude/
+
+# Environment files
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logs
+logs/
+
+# Node.js
+node_modules/

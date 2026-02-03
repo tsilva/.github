@@ -159,6 +159,44 @@ Syncs GitHub repo descriptions from README.md tagline or `pyproject.toml` for al
 
 Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
 
+### `sync-gitignore.sh`
+
+Ensures standard gitignore rules are applied to all repos from a central `gitignore.global` template.
+
+```bash
+# Run from the .github repo directory
+./scripts/sync-gitignore.sh ..
+
+# Dry run (preview without making changes)
+./scripts/sync-gitignore.sh --dry-run ..
+```
+
+**Features:**
+- Loads rules from `gitignore.global` template in this repo
+- Only appends missing rules (won't duplicate existing entries)
+- Adds managed header comment when appending rules
+- Provides summary at the end (X updated, Y in sync, Z failed, W skipped)
+
+**Rules in `gitignore.global`:**
+- `.claude/`, `.env`, `.env.*` — secrets and local config
+- `.DS_Store`, `__pycache__/`, `*.pyc` — OS and Python artifacts
+- `.venv/`, `node_modules/`, `logs/` — dependencies and logs
+
+### `check-tracked-ignored.sh`
+
+Warns about files that are tracked in git but match gitignore patterns.
+
+```bash
+# Run from the .github repo directory
+./scripts/check-tracked-ignored.sh ..
+```
+
+**Features:**
+- Uses `git ls-files -i --exclude-standard` to detect violations
+- Reports each tracked file that should be ignored
+- Provides summary and fix instructions at the end
+- Read-only operation (no changes made)
+
 ## ⚙️ Requirements
 
 Caller repos need:
