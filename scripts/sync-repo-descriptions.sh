@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Syncs pyproject.toml description to GitHub repo description
+# Syncs repo description to GitHub from README.md tagline or pyproject.toml
+# Priority: README.md tagline → pyproject.toml description
 # Usage: ./scripts/sync-repo-descriptions.sh <repos-dir>
 
 set -euo pipefail
@@ -15,8 +16,10 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS] <repos-dir>
 
-Syncs the 'description' field from pyproject.toml to GitHub repo descriptions
+Syncs GitHub repo descriptions from README.md tagline or pyproject.toml
 for all git repos in the specified directory.
+
+Priority: README.md tagline → pyproject.toml description
 
 Arguments:
     repos-dir       Directory containing git repositories
@@ -131,6 +134,106 @@ print(desc)
 "
 }
 
+# Extract tagline from README.md (first qualifying paragraph line)
+# Skips: frontmatter, headers, badges, blockquotes, HTML, links-only, horizontal rules
+extract_tagline() {
+    local readme="$1"
+    python3 - "$readme" << 'PYEOF'
+import re
+import sys
+
+def extract_tagline(readme_path):
+    try:
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except Exception:
+        return ""
+
+    lines = content.split('\n')
+    in_frontmatter = False
+    frontmatter_count = 0
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Handle YAML frontmatter
+        if stripped == '---':
+            frontmatter_count += 1
+            if frontmatter_count == 1:
+                in_frontmatter = True
+                continue
+            elif frontmatter_count == 2:
+                in_frontmatter = False
+                continue
+
+        if in_frontmatter:
+            continue
+
+        # Skip empty lines
+        if not stripped:
+            continue
+
+        # Skip headers (# ...)
+        if stripped.startswith('#'):
+            continue
+
+        # Skip badges (![...] or [![...)
+        if stripped.startswith('![') or stripped.startswith('[!['):
+            continue
+
+        # Skip blockquotes (> ...)
+        if stripped.startswith('>'):
+            continue
+
+        # Skip HTML tags (<div>, </div>, <img, etc.)
+        if stripped.startswith('<') or stripped.startswith('</'):
+            continue
+
+        # Skip horizontal rules (---, ***, ___)
+        if re.match(r'^[-*_]{3,}$', stripped):
+            continue
+
+        # Skip link-only lines [text](url) or just URLs
+        if re.match(r'^\[.+\]\(.+\)$', stripped):
+            continue
+        if re.match(r'^https?://', stripped):
+            continue
+
+        # Skip lines that are just navigation links like [Link1] · [Link2]
+        nav_pattern = r'^\[.+\](?:\(.+\))?\s*(?:[·|]\s*\[.+\](?:\(.+\))?)+$'
+        if re.match(nav_pattern, stripped):
+            continue
+
+        # Must have at least 10 characters to be a tagline
+        if len(stripped) < 10:
+            continue
+
+        # Found a qualifying line - clean it up
+        tagline = stripped
+
+        # Strip leading emoji (common pattern)
+        tagline = re.sub(r'^[\U0001F300-\U0001F9FF\U00002600-\U000027BF]\s*', '', tagline)
+
+        # Strip markdown formatting
+        tagline = re.sub(r'\*\*(.+?)\*\*', r'\1', tagline)  # bold
+        tagline = re.sub(r'\*(.+?)\*', r'\1', tagline)      # italic
+        tagline = re.sub(r'_(.+?)_', r'\1', tagline)        # italic
+        tagline = re.sub(r'`(.+?)`', r'\1', tagline)        # code
+        tagline = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', tagline)  # links
+        tagline = re.sub(r'<[^>]+>', '', tagline)           # HTML tags
+
+        # Truncate to 350 chars (GitHub limit) if needed
+        if len(tagline) > 350:
+            tagline = tagline[:347] + '...'
+
+        return tagline.strip()
+
+    return ""
+
+print(extract_tagline(sys.argv[1]))
+PYEOF
+}
+
 # Get current GitHub repo description
 get_github_description() {
     local repo="$1"
@@ -143,7 +246,7 @@ failed=0
 skipped=0
 in_sync=0
 
-echo "Syncing repo descriptions from pyproject.toml in: $REPOS_DIR"
+echo "Syncing repo descriptions (README.md → pyproject.toml) in: $REPOS_DIR"
 if $DRY_RUN; then
     echo -e "${YELLOW}DRY RUN MODE - no changes will be made${NC}"
 fi
@@ -158,13 +261,6 @@ for dir in "$REPOS_DIR"/*/; do
     # Skip if not a git repository
     if [[ ! -d "$dir/.git" ]]; then
         log_skip "$repo_name (not a git repo)"
-        ((skipped++))
-        continue
-    fi
-
-    # Skip if no pyproject.toml
-    if [[ ! -f "$dir/pyproject.toml" ]]; then
-        log_skip "$repo_name (no pyproject.toml)"
         ((skipped++))
         continue
     fi
@@ -187,11 +283,26 @@ for dir in "$REPOS_DIR"/*/; do
         continue
     fi
 
-    # Extract description from pyproject.toml
-    local_desc=$(extract_description "$dir/pyproject.toml" 2>/dev/null || true)
+    # Try README.md first, then pyproject.toml
+    local_desc=""
+    desc_source=""
+
+    if [[ -f "$dir/README.md" ]]; then
+        local_desc=$(extract_tagline "$dir/README.md" 2>/dev/null || true)
+        if [[ -n "$local_desc" ]]; then
+            desc_source="README.md"
+        fi
+    fi
+
+    if [[ -z "$local_desc" && -f "$dir/pyproject.toml" ]]; then
+        local_desc=$(extract_description "$dir/pyproject.toml" 2>/dev/null || true)
+        if [[ -n "$local_desc" ]]; then
+            desc_source="pyproject.toml"
+        fi
+    fi
 
     if [[ -z "$local_desc" ]]; then
-        log_skip "$repo_name (no description in pyproject.toml)"
+        log_skip "$repo_name (no description in README.md or pyproject.toml)"
         ((skipped++))
         continue
     fi
@@ -215,7 +326,7 @@ for dir in "$REPOS_DIR"/*/; do
     else
         if gh repo edit "$github_repo" --description "$local_desc" 2>/dev/null; then
             log_update "$repo_name → $github_repo"
-            log_info "Updated: \"$local_desc\""
+            log_info "Updated ($desc_source): \"$local_desc\""
             ((updated++))
         else
             log_error "$repo_name → $github_repo (failed to update)"

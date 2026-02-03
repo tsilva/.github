@@ -13,7 +13,6 @@
 - 🔄 **Modular workflows** — each handles a single concern, composable together
 - 📦 **PyPI publishing** — build, release, and publish via trusted publishing
 - 🏷️ **Auto-tagging** — version extracted from `pyproject.toml`, skips existing tags
-- 📝 **Repo description sync** — keeps GitHub description in sync with `pyproject.toml`
 - 🛡️ **Secret scanning** — detect credentials and secrets using [gitleaks](https://github.com/gitleaks/gitleaks)
 - 🔒 **Pre-commit hook** — run gitleaks locally before pushing
 - 🧪 **Testing** — pytest via reusable workflow
@@ -23,8 +22,7 @@
 
 | Workflow | Purpose | Key Details |
 |----------|---------|-------------|
-| `release.yml` | Composed release flow | Chains sync + publish/release |
-| `sync-repo-description.yml` | Sync repo description | Reads from `pyproject.toml` |
+| `release.yml` | Composed release flow | Chains test + scan + publish/release |
 | `publish-pypi.yml` | Build, tag, release, publish | Uses `uv build` + trusted publishing |
 | `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
 | `test.yml` | Run tests | Uses pytest via uv |
@@ -37,14 +35,10 @@ The main entry point for most repos. Chains individual workflows together.
 **Inputs:**
 - `publish_to_pypi` (boolean, default: `true`) — set `false` for non-Python repos
 
-**Required secrets:**
-- `PAT_TOKEN` — for updating repo description
-
 **Flow:**
-1. Runs PII scan for credentials and secrets
-2. Syncs repo description from `pyproject.toml`
-3. If `publish_to_pypi`: builds with `uv`, creates release with artifacts, publishes to PyPI
-4. If not: creates a GitHub release without artifacts
+1. Runs tests and PII scan in parallel
+2. If `publish_to_pypi`: builds with `uv`, creates release with artifacts, publishes to PyPI
+3. If not: creates a GitHub release without artifacts
 
 ### `pii-scan.yml`
 
@@ -79,15 +73,6 @@ jobs:
     uses: tsilva/.github/.github/workflows/release.yml@main
     with:
       publish_to_pypi: false
-    secrets: inherit
-```
-
-### Individual workflows
-
-```yaml
-jobs:
-  sync:
-    uses: tsilva/.github/.github/workflows/sync-repo-description.yml@main
     secrets: inherit
 ```
 
@@ -153,7 +138,9 @@ Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authen
 
 ### `sync-repo-descriptions.sh`
 
-Syncs the `description` field from `pyproject.toml` to GitHub repo descriptions for all repos.
+Syncs GitHub repo descriptions from README.md tagline or `pyproject.toml` for all repos.
+
+**Priority:** README.md tagline (first paragraph line) → `pyproject.toml` description
 
 ```bash
 # Run from the .github repo directory
@@ -164,8 +151,9 @@ Syncs the `description` field from `pyproject.toml` to GitHub repo descriptions 
 ```
 
 **Features:**
-- Compares local `pyproject.toml` description with GitHub repo description
-- Only updates if they differ (shows "already in sync" otherwise)
+- Extracts tagline from README.md (skips headers, badges, frontmatter, HTML)
+- Falls back to `pyproject.toml` description if no README tagline found
+- Only updates if description differs (shows "already in sync" otherwise)
 - Requires Python 3.11+ (uses `tomllib`)
 - Provides summary at the end (X updated, Y in sync, Z failed, W skipped)
 
@@ -174,8 +162,7 @@ Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authen
 ## ⚙️ Requirements
 
 Caller repos need:
-- `pyproject.toml` with `version` and `description` fields
-- `PAT_TOKEN` secret (for repo description updates)
+- `pyproject.toml` with `version` field (and `description` for script-based sync)
 - `pypi` environment configured (for PyPI publishing with trusted publishing)
 
 ## 📄 License

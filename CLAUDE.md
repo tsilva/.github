@@ -10,12 +10,6 @@ Modular reusable workflows triggered via `workflow_call`. Each workflow handles 
 
 ## Workflows
 
-### `sync-repo-description.yml`
-
-Reads `description` from `pyproject.toml` and updates the GitHub repo description.
-
-- **Secrets:** `PAT_TOKEN`
-
 ### `publish-pypi.yml`
 
 Extracts version from `pyproject.toml`, checks if tag exists, builds with `uv`, creates a GitHub release with artifacts, and publishes to PyPI via trusted publishing.
@@ -55,15 +49,13 @@ Chains the above workflows together. Maintains the same interface as before.
 
 #### Secrets
 
-- `PAT_TOKEN` — used to update the caller repo's GitHub description via `gh repo edit`
 - `GITHUB_TOKEN` — used for creating GitHub releases (provided automatically)
 
 #### Flow
 
 1. Runs `test.yml` and `pii-scan.yml` in parallel
-2. Calls `sync-repo-description.yml` to update repo description
-3. If `publish_to_pypi`: calls `publish-pypi.yml`
-4. If not `publish_to_pypi`: calls `create-release.yml`
+2. If `publish_to_pypi`: calls `publish-pypi.yml`
+3. If not `publish_to_pypi`: calls `create-release.yml`
 
 ### Caller Usage
 
@@ -84,15 +76,6 @@ Set `publish_to_pypi: false` for non-Python repos:
     uses: tsilva/.github/.github/workflows/release.yml@main
     with:
       publish_to_pypi: false
-    secrets: inherit
-```
-
-Individual workflows can also be called directly:
-
-```yaml
-jobs:
-  sync:
-    uses: tsilva/.github/.github/workflows/sync-repo-description.yml@main
     secrets: inherit
 ```
 
