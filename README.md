@@ -127,6 +127,50 @@ pre-commit run gitleaks --all-files
 
 Requires Go installed locally (gitleaks is built from source by pre-commit).
 
+## 🛠️ Scripts
+
+All scripts should be run from the `.github` repo directory, using `..` to reference sibling repos.
+
+### `set-secret-all-repos.sh`
+
+Sets a GitHub repository secret for all git repos in a specified directory.
+
+```bash
+# Run from the .github repo directory
+./scripts/set-secret-all-repos.sh .. PAT_TOKEN "$MY_PAT"
+
+# Dry run (preview without making changes)
+./scripts/set-secret-all-repos.sh --dry-run .. PAT_TOKEN "$MY_PAT"
+```
+
+**Features:**
+- Validates inputs before proceeding
+- Skips non-git directories
+- Handles both HTTPS and SSH remote URL formats
+- Provides summary at the end (X succeeded, Y failed, Z skipped)
+
+Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
+
+### `sync-repo-descriptions.sh`
+
+Syncs the `description` field from `pyproject.toml` to GitHub repo descriptions for all repos.
+
+```bash
+# Run from the .github repo directory
+./scripts/sync-repo-descriptions.sh ..
+
+# Dry run (preview without making changes)
+./scripts/sync-repo-descriptions.sh --dry-run ..
+```
+
+**Features:**
+- Compares local `pyproject.toml` description with GitHub repo description
+- Only updates if they differ (shows "already in sync" otherwise)
+- Requires Python 3.11+ (uses `tomllib`)
+- Provides summary at the end (X updated, Y in sync, Z failed, W skipped)
+
+Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
+
 ## ⚙️ Requirements
 
 Caller repos need:
