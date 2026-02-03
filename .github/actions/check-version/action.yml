@@ -19,7 +19,35 @@ runs:
       id: version
       shell: bash
       run: |
-        VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+        VERSION=$(python -c "
+        import tomllib
+        import re
+
+        with open('pyproject.toml', 'rb') as f:
+            config = tomllib.load(f)
+
+        project = config.get('project', {})
+
+        # Check for static version first
+        if 'version' in project:
+            print(project['version'])
+        # Handle dynamic version via hatchling
+        elif 'version' in project.get('dynamic', []):
+            hatch_config = config.get('tool', {}).get('hatch', {}).get('version', {})
+            version_path = hatch_config.get('path')
+            if version_path:
+                with open(version_path) as vf:
+                    content = vf.read()
+                    match = re.search(r'__version__\s*=\s*[\"\\']([^\"\\']+)[\"\\']', content)
+                    if match:
+                        print(match.group(1))
+                    else:
+                        raise ValueError(f'Could not find __version__ in {version_path}')
+            else:
+                raise ValueError('Dynamic version specified but no hatch.version.path found')
+        else:
+            raise ValueError('No version found in pyproject.toml')
+        ")
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
     - name: Check if tag exists
