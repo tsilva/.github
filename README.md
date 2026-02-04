@@ -197,6 +197,22 @@ Warns about files that are tracked in git but match gitignore patterns.
 - Provides summary and fix instructions at the end
 - Read-only operation (no changes made)
 
+### `report-taglines.sh`
+
+Generates a tabular report showing repository names and their README.md taglines.
+
+```bash
+# Run from the .github repo directory
+./scripts/report-taglines.sh ..
+```
+
+**Features:**
+- Extracts taglines from README.md (same logic as `sync-repo-descriptions.sh`)
+- Displays results in a formatted table with columns: Repo | Tagline
+- Shows repos with missing taglines marked as `(no tagline)` or `(no README)`
+- Dynamically calculates column widths for clean alignment
+- Provides summary at the end (X with tagline, Y without)
+
 ## ⚙️ Requirements
 
 Caller repos need:
