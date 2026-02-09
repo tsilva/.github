@@ -3,21 +3,42 @@
 
 # Claude Code
 .claude/
+.claude-sandbox.json
 
-# Environment files
+# Secrets and credentials
 .env
 .env.*
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.json
+.secrets/
 
 # macOS
 .DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # Python
 __pycache__/
 *.pyc
 .venv/
-
-# Logs
-logs/
+venv/
+*.egg-info/
 
 # Node.js
 node_modules/
+
+# Build artifacts
+dist/
+build/
+
+# Logs
+logs/
+*.log

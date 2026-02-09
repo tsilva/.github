@@ -2,11 +2,30 @@
 
 ## Repository Purpose
 
-Shared GitHub Actions reusable workflows for the `tsilva` GitHub organization. Caller repositories reference workflows from this repo to standardize CI/CD across projects.
+Shared GitHub Actions reusable workflows and org-wide maintenance tooling for the `tsilva` GitHub organization. Caller repositories reference workflows from this repo to standardize CI/CD across projects. Maintenance scripts audit and enforce repo compliance standards.
 
 ## Architecture
 
+### Workflows
+
 Modular reusable workflows triggered via `workflow_call`. Each workflow handles a single concern and can be called independently. A composed `release.yml` chains them together for the common release flow.
+
+### Scripts
+
+Scripts in `scripts/` operate on a directory of repos. They share common infrastructure:
+
+- `scripts/lib/style.sh` — terminal styling (colors, log functions, NO_COLOR support)
+- `scripts/lib/common.sh` — argument parsing (`--dry-run`, `--filter`, `<repos-dir>`), repo discovery, GitHub remote extraction
+
+All scripts follow the pattern: `./scripts/<name>.sh [--dry-run] [--filter PATTERN] <repos-dir>`
+
+### Skills
+
+Skills in `.claude/skills/` provide AI-dependent maintenance operations:
+
+- `maintain-repos` — orchestrator: audit → sync scripts → AI fixes
+- `fix-readme` — README remediation (delegates to `project-readme-author`)
+- `fix-logo` — logo remediation (delegates to `project-logo-author`)
 
 ## Workflows
 
@@ -35,21 +54,17 @@ Scans repository for credentials and secrets using [gitleaks-action v2](https://
 
 Runs tests with [pytest](https://docs.pytest.org/).
 
-- **Inputs:** `python-version` (string, default `"3.12"`)
+- **Inputs:** `python-version` (string, default `"3.12"`), `pytest-args` (string, default `""`)
 - **Timeout:** 10 minutes
 - Gracefully skips when no tests are found (pytest exit code 5)
 
 ### `release.yml` (composer)
 
-Chains the above workflows together. Maintains the same interface as before.
+Chains the above workflows together.
 
 #### Inputs
 
 - `publish_to_pypi` (boolean, default: `true`) — controls whether to build/publish to PyPI or create a release without artifacts
-
-#### Secrets
-
-- `GITHUB_TOKEN` — used for creating GitHub releases (provided automatically)
 
 #### Flow
 
@@ -79,40 +94,37 @@ Set `publish_to_pypi: false` for non-Python repos:
     secrets: inherit
 ```
 
-Run PII scanning on PRs:
+## Scripts
 
-```yaml
-on:
-  pull_request:
+### Audit
 
-jobs:
-  pii-scan:
-    uses: tsilva/.github/.github/workflows/pii-scan.yml@main
-```
+- `audit-repos.sh` — comprehensive compliance audit (12 checks per repo, `--json` for machine output)
 
-Run CI checks on PRs:
+### Sync (safe, idempotent)
 
-```yaml
-on:
-  pull_request:
+- `sync-gitignore.sh` — append missing rules from `gitignore.global`
+- `sync-license.sh` — create MIT LICENSE from template
+- `sync-claude-md.sh` — create minimal CLAUDE.md from template
+- `sync-sandbox.sh` — enable Claude sandbox in `.claude/settings.json`
+- `sync-dependabot.sh` — create `dependabot.yml` with auto-detected ecosystems
+- `sync-repo-descriptions.sh` — sync GitHub descriptions from README tagline
 
-jobs:
-  test:
-    uses: tsilva/.github/.github/workflows/test.yml@main
-```
+### Reports
 
-### Dependabot
+- `report-taglines.sh` — tabular report of repo taglines
+- `check-tracked-ignored.sh` — find tracked files matching gitignore
 
-Caller repos can add `.github/dependabot.yml` to keep GitHub Actions up to date:
+### Utilities
 
-```yaml
-version: 2
-updates:
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-```
+- `set-secret-all-repos.sh` — set GitHub secret across all repos
+
+### Templates
+
+Templates used by sync scripts:
+
+- `scripts/templates/LICENSE` — MIT license (`[year]`/`[fullname]` placeholders)
+- `scripts/templates/CLAUDE.md` — minimal CLAUDE.md (`[project-name]` placeholder)
+- `scripts/templates/dependabot.yml` — base dependabot config
 
 ## Pre-commit Hook
 

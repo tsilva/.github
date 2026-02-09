@@ -3,22 +3,23 @@
 
   # .github
 
-  ⚙️ Shared reusable GitHub Actions workflows for the `tsilva` organization — standardized CI/CD across every repo
+  Shared reusable GitHub Actions workflows and org-wide maintenance tooling for the `tsilva` organization
 
-  [Workflows](#-workflows) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
+  [Workflows](#-workflows) · [Scripts](#-scripts) · [Skills](#-skills) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
 </div>
 
-## ✨ Features
+## Features
 
-- 🔄 **Modular workflows** — each handles a single concern, composable together
-- 📦 **PyPI publishing** — build, release, and publish via trusted publishing
-- 🏷️ **Auto-tagging** — version extracted from `pyproject.toml`, skips existing tags
-- 🛡️ **Secret scanning** — detect credentials and secrets using [gitleaks](https://github.com/gitleaks/gitleaks)
-- 🔒 **Pre-commit hook** — run gitleaks locally before pushing
-- 🧪 **Testing** — pytest via reusable workflow
-- 🎯 **One-line integration** — `uses: tsilva/.github/...@main` and `secrets: inherit`
+- Modular workflows — each handles a single concern, composable together
+- PyPI publishing — build, release, and publish via trusted publishing
+- Auto-tagging — version extracted from `pyproject.toml`, skips existing tags
+- Secret scanning — detect credentials and secrets using [gitleaks](https://github.com/gitleaks/gitleaks)
+- Pre-commit hook — run gitleaks locally before pushing
+- Testing — pytest via reusable workflow
+- Repo compliance — audit and enforce org standards across all repos
+- One-line integration — `uses: tsilva/.github/...@main` and `secrets: inherit`
 
-## 📋 Workflows
+## Workflows
 
 | Workflow | Purpose | Key Details |
 |----------|---------|-------------|
@@ -46,7 +47,86 @@ Scans repository for credentials and secrets using [gitleaks-action v2](https://
 
 Caller repos can customize detection rules via a `.gitleaks.toml` config file.
 
-## 🚀 Usage
+## Scripts
+
+All scripts operate on a directory of git repos. Run from the `.github` repo directory, using `..` as the repos directory.
+
+Common options: `--dry-run` (preview without changes), `--filter PATTERN` (substring match on repo name), `--help`.
+
+### Audit
+
+#### `audit-repos.sh`
+
+Comprehensive compliance audit — 12 checks per repo covering README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings, dependabot, tracked-ignored files, and Python config.
+
+```bash
+./scripts/audit-repos.sh ..
+./scripts/audit-repos.sh --json ..         # Machine-readable output
+./scripts/audit-repos.sh --filter myrepo ..
+```
+
+### Sync
+
+Idempotent scripts that ensure standard files exist. Only create missing files — never overwrite existing ones.
+
+| Script | Purpose |
+|--------|---------|
+| `sync-gitignore.sh` | Append missing rules from `gitignore.global` |
+| `sync-license.sh` | Create MIT LICENSE from template |
+| `sync-claude-md.sh` | Create minimal CLAUDE.md from template |
+| `sync-sandbox.sh` | Enable Claude sandbox in `.claude/settings.json` |
+| `sync-dependabot.sh` | Create `dependabot.yml` with auto-detected ecosystems |
+| `sync-repo-descriptions.sh` | Sync GitHub descriptions from README tagline |
+
+```bash
+# Dry run any sync script
+./scripts/sync-license.sh --dry-run ..
+./scripts/sync-dependabot.sh --dry-run ..
+```
+
+### Reports
+
+| Script | Purpose |
+|--------|---------|
+| `report-taglines.sh` | Tabular report of repo names and README taglines |
+| `check-tracked-ignored.sh` | Find tracked files that match gitignore patterns |
+
+### Utilities
+
+| Script | Purpose |
+|--------|---------|
+| `set-secret-all-repos.sh` | Set a GitHub secret across all repos |
+
+```bash
+./scripts/set-secret-all-repos.sh .. MY_SECRET "value"
+```
+
+### Shared Libraries
+
+Scripts share common infrastructure via `scripts/lib/`:
+
+- `style.sh` — terminal colors, log functions (`success`, `error`, `warn`, `info`, `step`, `skip`), `NO_COLOR` support
+- `common.sh` — `parse_args()`, `discover_repos()`, `extract_github_remote()`, `require_gh_auth()`
+
+### Templates
+
+Templates used by sync scripts live in `scripts/templates/`:
+
+- `LICENSE` — MIT license with `[year]`/`[fullname]` placeholders
+- `CLAUDE.md` — minimal CLAUDE.md with `[project-name]` placeholder
+- `dependabot.yml` — base dependabot config
+
+## Skills
+
+Claude Code skills for AI-dependent maintenance operations (in `.claude/skills/`):
+
+| Skill | Purpose |
+|-------|---------|
+| `maintain-repos` | Orchestrator: audit → sync scripts → AI fixes |
+| `fix-readme` | README remediation (delegates to `project-readme-author`) |
+| `fix-logo` | Logo remediation (delegates to `project-logo-author`) |
+
+## Usage
 
 ### Full release (Python projects)
 
@@ -89,7 +169,7 @@ jobs:
     uses: tsilva/.github/.github/workflows/pii-scan.yml@main
 ```
 
-## 🔒 Pre-commit Hook
+## Pre-commit Hook
 
 This repo provides a [pre-commit](https://pre-commit.com/) hook for running gitleaks locally.
 
@@ -110,115 +190,19 @@ pre-commit install
 pre-commit run gitleaks --all-files
 ```
 
-Requires Go installed locally (gitleaks is built from source by pre-commit).
+Requires [gitleaks](https://github.com/gitleaks/gitleaks#installing) installed locally.
 
-## 🛠️ Scripts
-
-All scripts should be run from the `.github` repo directory, using `..` to reference sibling repos.
-
-### `set-secret-all-repos.sh`
-
-Sets a GitHub repository secret for all git repos in a specified directory.
-
-```bash
-# Run from the .github repo directory
-./scripts/set-secret-all-repos.sh .. PAT_TOKEN "$MY_PAT"
-
-# Dry run (preview without making changes)
-./scripts/set-secret-all-repos.sh --dry-run .. PAT_TOKEN "$MY_PAT"
-```
-
-**Features:**
-- Validates inputs before proceeding
-- Skips non-git directories
-- Handles both HTTPS and SSH remote URL formats
-- Provides summary at the end (X succeeded, Y failed, Z skipped)
-
-Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
-
-### `sync-repo-descriptions.sh`
-
-Syncs GitHub repo descriptions from README.md tagline or `pyproject.toml` for all repos.
-
-**Priority:** README.md tagline (first paragraph line) → `pyproject.toml` description
-
-```bash
-# Run from the .github repo directory
-./scripts/sync-repo-descriptions.sh ..
-
-# Dry run (preview without making changes)
-./scripts/sync-repo-descriptions.sh --dry-run ..
-```
-
-**Features:**
-- Extracts tagline from README.md (skips headers, badges, frontmatter, HTML)
-- Falls back to `pyproject.toml` description if no README tagline found
-- Only updates if description differs (shows "already in sync" otherwise)
-- Requires Python 3.11+ (uses `tomllib`)
-- Provides summary at the end (X updated, Y in sync, Z failed, W skipped)
-
-Requires [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
-
-### `sync-gitignore.sh`
-
-Ensures standard gitignore rules are applied to all repos from a central `gitignore.global` template.
-
-```bash
-# Run from the .github repo directory
-./scripts/sync-gitignore.sh ..
-
-# Dry run (preview without making changes)
-./scripts/sync-gitignore.sh --dry-run ..
-```
-
-**Features:**
-- Loads rules from `gitignore.global` template in this repo
-- Only appends missing rules (won't duplicate existing entries)
-- Adds managed header comment when appending rules
-- Provides summary at the end (X updated, Y in sync, Z failed, W skipped)
-
-**Rules in `gitignore.global`:**
-- `.claude/`, `.env`, `.env.*` — secrets and local config
-- `.DS_Store`, `__pycache__/`, `*.pyc` — OS and Python artifacts
-- `.venv/`, `node_modules/`, `logs/` — dependencies and logs
-
-### `check-tracked-ignored.sh`
-
-Warns about files that are tracked in git but match gitignore patterns.
-
-```bash
-# Run from the .github repo directory
-./scripts/check-tracked-ignored.sh ..
-```
-
-**Features:**
-- Uses `git ls-files -i --exclude-standard` to detect violations
-- Reports each tracked file that should be ignored
-- Provides summary and fix instructions at the end
-- Read-only operation (no changes made)
-
-### `report-taglines.sh`
-
-Generates a tabular report showing repository names and their README.md taglines.
-
-```bash
-# Run from the .github repo directory
-./scripts/report-taglines.sh ..
-```
-
-**Features:**
-- Extracts taglines from README.md (same logic as `sync-repo-descriptions.sh`)
-- Displays results in a formatted table with columns: Repo | Tagline
-- Shows repos with missing taglines marked as `(no tagline)` or `(no README)`
-- Dynamically calculates column widths for clean alignment
-- Provides summary at the end (X with tagline, Y without)
-
-## ⚙️ Requirements
+## Requirements
 
 Caller repos need:
-- `pyproject.toml` with `version` field (and `description` for script-based sync)
+- `pyproject.toml` with `version` field (for release workflows)
 - `pypi` environment configured (for PyPI publishing with trusted publishing)
 
-## 📄 License
+Scripts require:
+- [GitHub CLI](https://cli.github.com/) (`gh`) — installed and authenticated
+- Python 3.11+ — for tagline extraction and settings manipulation
+- bash 4+ — for associative arrays and modern shell features
+
+## License
 
 MIT

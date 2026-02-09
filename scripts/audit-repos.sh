@@ -1,0 +1,431 @@
+#!/usr/bin/env bash
+# Comprehensive repo compliance audit
+# Usage: ./scripts/audit-repos.sh [--dry-run] [--filter PATTERN] [--json] <repos-dir>
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/style.sh"
+source "$SCRIPT_DIR/lib/common.sh"
+
+JSON_OUTPUT=false
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [OPTIONS] <repos-dir>
+
+Audits all git repos for compliance with tsilva org standards.
+
+Checks: README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings,
+dependabot config, tracked-ignored files, Python project config.
+
+Arguments:
+    repos-dir       Directory containing git repositories
+
+Options:
+    -n, --dry-run   Same as normal mode (this is a read-only operation)
+    -f, --filter    Only process repos matching pattern
+    -j, --json      Output JSON report to stdout
+    -h, --help      Show this help message
+
+Examples:
+    $(basename "$0") ~/repos
+    $(basename "$0") --json ~/repos
+    $(basename "$0") --filter my-project ~/repos
+EOF
+    exit "${1:-0}"
+}
+
+# Override parse_args to add --json
+parse_args_audit() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -n|--dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            -f|--filter)
+                FILTER="${2:?Error: --filter requires a value}"
+                shift 2
+                ;;
+            -j|--json)
+                JSON_OUTPUT=true
+                shift
+                ;;
+            -h|--help)
+                usage 0
+                ;;
+            -*)
+                echo "Unknown option: $1" >&2
+                usage 1
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [[ $# -lt 1 ]]; then
+        echo "Error: Missing required argument: repos-dir" >&2
+        usage 1
+    fi
+
+    REPOS_DIR="$1"
+
+    if [[ ! -d "$REPOS_DIR" ]]; then
+        echo "Error: Directory does not exist: $REPOS_DIR" >&2
+        exit 1
+    fi
+}
+
+parse_args_audit "$@"
+
+# --- Gitignore essential patterns ---
+ESSENTIAL_GITIGNORE=(
+    ".env"
+    ".DS_Store"
+    "node_modules/"
+    "__pycache__/"
+    "*.pyc"
+    ".venv/"
+)
+
+# --- Check functions ---
+# Each outputs "PASS" or "FAIL<tab>message"
+
+check_readme_exists() {
+    [[ -f "$1/README.md" ]] && echo "PASS" || echo "FAIL	README.md not found"
+}
+
+check_readme_current() {
+    local dir="$1"
+    local readme="$dir/README.md"
+
+    [[ ! -f "$readme" ]] && { echo "FAIL	README.md does not exist"; return; }
+
+    local content
+    content=$(<"$readme")
+    local issues=()
+
+    # Check for placeholder content
+    for placeholder in "TODO" "FIXME" "Coming soon" "Work in progress" "Under construction" "[Insert" "Lorem ipsum"; do
+        if echo "$content" | grep -qi "$placeholder" 2>/dev/null; then
+            issues+=("Contains placeholder: '$placeholder'")
+        fi
+    done
+
+    # Check for very short README
+    local char_count=${#content}
+    if [[ $char_count -lt 100 ]]; then
+        issues+=("README is very short (<100 chars)")
+    fi
+
+    # Check for missing sections
+    local content_lower
+    content_lower=$(echo "$content" | tr '[:upper:]' '[:lower:]')
+    local has_install=false has_usage=false
+    echo "$content_lower" | grep -qE "install|setup|getting started" && has_install=true
+    echo "$content_lower" | grep -qE "usage|example|how to" && has_usage=true
+
+    if ! $has_install && ! $has_usage; then
+        issues+=("Missing installation/usage sections")
+    fi
+
+    if [[ ${#issues[@]} -eq 0 ]]; then
+        echo "PASS"
+    else
+        local msg
+        msg=$(IFS='; '; echo "${issues[*]}")
+        echo "FAIL	$msg"
+    fi
+}
+
+check_readme_has_license() {
+    local readme="$1/README.md"
+    [[ ! -f "$readme" ]] && { echo "FAIL	README.md does not exist"; return; }
+
+    local content_lower
+    content_lower=$(tr '[:upper:]' '[:lower:]' < "$readme")
+
+    if echo "$content_lower" | grep -qE '## license|# license|mit license|\[mit\]'; then
+        echo "PASS"
+    else
+        echo "FAIL	README missing license reference"
+    fi
+}
+
+check_logo_exists() {
+    local dir="$1"
+    for pattern in logo.png logo.svg logo.jpg assets/logo.png assets/logo.svg images/logo.png images/logo.svg .github/logo.png .github/logo.svg; do
+        if [[ -f "$dir/$pattern" ]]; then
+            echo "PASS"
+            return
+        fi
+    done
+    echo "FAIL	No logo found in standard locations"
+}
+
+check_license_exists() {
+    local dir="$1"
+    for name in LICENSE LICENSE.md LICENSE.txt; do
+        [[ -f "$dir/$name" ]] && { echo "PASS"; return; }
+    done
+    echo "FAIL	No LICENSE file found"
+}
+
+check_gitignore_exists() {
+    [[ -f "$1/.gitignore" ]] && echo "PASS" || echo "FAIL	.gitignore not found"
+}
+
+check_gitignore_complete() {
+    local gitignore="$1/.gitignore"
+    [[ ! -f "$gitignore" ]] && { echo "FAIL	.gitignore does not exist"; return; }
+
+    local content_lower
+    content_lower=$(tr '[:upper:]' '[:lower:]' < "$gitignore")
+    local missing=()
+
+    for pattern in "${ESSENTIAL_GITIGNORE[@]}"; do
+        local pattern_base
+        pattern_base=$(echo "${pattern%%/}" | tr '[:upper:]' '[:lower:]')
+        if ! echo "$content_lower" | grep -q "$pattern_base"; then
+            missing+=("$pattern")
+        fi
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        echo "PASS"
+    else
+        echo "FAIL	Missing ${#missing[@]} patterns: ${missing[*]}"
+    fi
+}
+
+check_claude_md_exists() {
+    [[ -f "$1/CLAUDE.md" ]] && echo "PASS" || echo "FAIL	CLAUDE.md not found"
+}
+
+check_claude_sandbox() {
+    local dir="$1"
+    local claude_dir="$dir/.claude"
+
+    for settings_file in "$claude_dir/settings.json" "$claude_dir/settings.local.json"; do
+        if [[ -f "$settings_file" ]]; then
+            if python3 -c "
+import json, sys
+try:
+    data = json.load(open('$settings_file'))
+    sys.exit(0 if isinstance(data.get('sandbox'), dict) and data['sandbox'].get('enabled') is True else 1)
+except: sys.exit(1)
+" 2>/dev/null; then
+                echo "PASS"
+                return
+            fi
+        fi
+    done
+    echo "FAIL	Sandbox not enabled"
+}
+
+check_dependabot_exists() {
+    local dir="$1"
+    if [[ -f "$dir/.github/dependabot.yml" || -f "$dir/.github/dependabot.yaml" ]]; then
+        echo "PASS"
+    else
+        echo "FAIL	No .github/dependabot.yml"
+    fi
+}
+
+check_tracked_ignored() {
+    local dir="$1"
+    local tracked_ignored
+    tracked_ignored=$(git -C "$dir" ls-files -i --exclude-standard 2>/dev/null || true)
+    if [[ -z "$tracked_ignored" ]]; then
+        echo "PASS"
+    else
+        local count
+        count=$(echo "$tracked_ignored" | wc -l | tr -d ' ')
+        echo "FAIL	$count tracked file(s) match gitignore"
+    fi
+}
+
+check_python_pyproject() {
+    local dir="$1"
+
+    # Detect if it's a Python project
+    local is_python=false
+    for indicator in setup.py requirements.txt setup.cfg Pipfile; do
+        [[ -f "$dir/$indicator" ]] && { is_python=true; break; }
+    done
+
+    if ! $is_python; then
+        # Check for .py files (more than 2 non-test files)
+        local py_count
+        py_count=$(find "$dir" -name "*.py" -not -name "test_*" -not -path "*/.venv/*" -not -path "*/node_modules/*" 2>/dev/null | head -3 | wc -l | tr -d ' ')
+        [[ "$py_count" -gt 2 ]] && is_python=true
+    fi
+
+    if ! $is_python; then
+        echo "SKIP"
+        return
+    fi
+
+    [[ -f "$dir/pyproject.toml" ]] && echo "PASS" || echo "FAIL	Python project missing pyproject.toml"
+}
+
+# --- All checks in order ---
+ALL_CHECKS=(
+    "README_EXISTS:check_readme_exists"
+    "README_CURRENT:check_readme_current"
+    "README_LICENSE:check_readme_has_license"
+    "LOGO_EXISTS:check_logo_exists"
+    "LICENSE_EXISTS:check_license_exists"
+    "GITIGNORE_EXISTS:check_gitignore_exists"
+    "GITIGNORE_COMPLETE:check_gitignore_complete"
+    "CLAUDE_MD_EXISTS:check_claude_md_exists"
+    "CLAUDE_SANDBOX:check_claude_sandbox"
+    "DEPENDABOT_EXISTS:check_dependabot_exists"
+    "TRACKED_IGNORED:check_tracked_ignored"
+    "PYTHON_PYPROJECT:check_python_pyproject"
+)
+
+# --- Run audit ---
+discover_repos "$REPOS_DIR"
+
+if [[ ${#REPOS[@]} -eq 0 ]]; then
+    echo "No git repositories found in: $REPOS_DIR"
+    exit 0
+fi
+
+# JSON accumulator
+json_repos="["
+json_first_repo=true
+
+# Totals
+total_passed=0
+total_failed=0
+total_skipped=0
+
+if ! $JSON_OUTPUT; then
+    banner "Repo Audit"
+    info "Directory: $REPOS_DIR"
+    info "Repositories: ${#REPOS[@]}"
+    echo ""
+fi
+
+for i in "${!REPOS[@]}"; do
+    dir="${REPOS[$i]}"
+    repo_name="${REPO_NAMES[$i]}"
+
+    repo_passed=0
+    repo_failed=0
+    repo_skipped=0
+    failed_checks=()
+    failed_messages=()
+
+    # JSON per-check accumulator
+    json_checks="["
+    json_first_check=true
+
+    for check_entry in "${ALL_CHECKS[@]}"; do
+        check_name="${check_entry%%:*}"
+        check_fn="${check_entry##*:}"
+
+        result=$("$check_fn" "$dir")
+
+        if [[ "$result" == "PASS" ]]; then
+            ((repo_passed++))
+            status="passed"
+            message=""
+        elif [[ "$result" == "SKIP" ]]; then
+            ((repo_skipped++))
+            ((repo_passed++))  # Skips count as passed
+            status="skipped"
+            message=""
+        else
+            ((repo_failed++))
+            message="${result#FAIL	}"
+            status="failed"
+            failed_checks+=("$check_name")
+            failed_messages+=("$message")
+        fi
+
+        # Build JSON check entry
+        if $JSON_OUTPUT; then
+            $json_first_check || json_checks+=","
+            json_first_check=false
+            # Escape message for JSON
+            escaped_msg=$(echo "$message" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g')
+            json_checks+="{\"check\":\"$check_name\",\"status\":\"$status\",\"message\":\"$escaped_msg\"}"
+        fi
+    done
+
+    json_checks+="]"
+
+    ((total_passed += repo_passed))
+    ((total_failed += repo_failed))
+    ((total_skipped += repo_skipped))
+
+    # Human-readable output
+    if ! $JSON_OUTPUT; then
+        if [[ $repo_failed -eq 0 ]]; then
+            success "$repo_name (${repo_passed}/${repo_passed} passed)"
+        else
+            error "$repo_name (${repo_failed} failed)"
+            for j in "${!failed_checks[@]}"; do
+                detail "${RED}${failed_checks[$j]}${NC}: ${failed_messages[$j]}"
+            done
+        fi
+    fi
+
+    # Build JSON repo entry
+    if $JSON_OUTPUT; then
+        $json_first_repo || json_repos+=","
+        json_first_repo=false
+        json_repos+="{\"repo\":\"$repo_name\",\"path\":\"$dir\",\"checks\":$json_checks,\"summary\":{\"passed\":$repo_passed,\"failed\":$repo_failed,\"skipped\":$repo_skipped}}"
+    fi
+done
+
+json_repos+="]"
+
+# Overall summary
+total_checks=$((total_passed + total_failed))
+pass_rate=0
+if [[ $total_checks -gt 0 ]]; then
+    pass_rate=$(( (total_passed * 1000 / total_checks + 5) / 10 ))
+fi
+
+if $JSON_OUTPUT; then
+    # Detect GitHub user from first repo
+    github_user=""
+    if [[ ${#REPOS[@]} -gt 0 ]]; then
+        remote_url=$(git -C "${REPOS[0]}" remote get-url origin 2>/dev/null || true)
+        if [[ -n "$remote_url" ]]; then
+            github_user=$(extract_github_remote "$remote_url" 2>/dev/null | cut -d/ -f1 || true)
+        fi
+    fi
+
+    cat <<ENDJSON
+{
+  "audit_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "repos_dir": "$REPOS_DIR",
+  "github_user": "$github_user",
+  "repos_count": ${#REPOS[@]},
+  "repos": $json_repos,
+  "summary": {
+    "total_checks": $total_checks,
+    "passed": $total_passed,
+    "failed": $total_failed,
+    "pass_rate": $pass_rate
+  }
+}
+ENDJSON
+else
+    echo ""
+    header "Results"
+    echo -e "  Checks:    ${total_passed}/${total_checks} passed (${pass_rate}%)"
+    echo -e "  Passed:    ${GREEN}${total_passed}${NC}"
+    echo -e "  Failed:    ${RED}${total_failed}${NC}"
+    [[ $total_skipped -gt 0 ]] && echo -e "  Skipped:   ${DIM}${total_skipped}${NC}"
+fi
+
+[[ $total_failed -gt 0 ]] && exit 1
+exit 0

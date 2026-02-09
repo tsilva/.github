@@ -1,0 +1,5 @@
+- All python repos should be installed with UV
+- When a python project is meant to be deployed as a command line it should be deployed to pypi, installable through pypi with uv, and also deployed to homebrew
+- All python repos should have a CI workflow
+- All repos with a ci workflow should have a CI badge in readme
+- All python repos should require the minimum python version that can run that project
