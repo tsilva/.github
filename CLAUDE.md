@@ -98,7 +98,7 @@ Set `publish_to_pypi: false` for non-Python repos:
 
 ### Audit
 
-- `audit-repos.sh` — comprehensive compliance audit (12 checks per repo, `--json` for machine output)
+- `audit-repos.sh` — comprehensive compliance audit (14 checks per repo, `--json` for machine output)
 
 ### Sync (safe, idempotent)
 
@@ -106,6 +106,7 @@ Set `publish_to_pypi: false` for non-Python repos:
 - `sync-license.sh` — create MIT LICENSE from template
 - `sync-claude-md.sh` — create minimal CLAUDE.md from template
 - `sync-sandbox.sh` — enable Claude sandbox in `.claude/settings.json`
+- `sync-settings.sh` — remove redundant permissions, migrate WebFetch domains to sandbox
 - `sync-dependabot.sh` — create `dependabot.yml` with auto-detected ecosystems
 - `sync-repo-descriptions.sh` — sync GitHub descriptions from README tagline
 

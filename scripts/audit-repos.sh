@@ -17,7 +17,8 @@ Usage: $(basename "$0") [OPTIONS] <repos-dir>
 Audits all git repos for compliance with tsilva org standards.
 
 Checks: README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings,
-dependabot config, tracked-ignored files, Python project config.
+dependabot config, tracked-ignored files, Python project config,
+Claude settings (dangerous patterns, redundant permissions).
 
 Arguments:
     repos-dir       Directory containing git repositories
@@ -271,6 +272,30 @@ check_python_pyproject() {
     [[ -f "$dir/pyproject.toml" ]] && echo "PASS" || echo "FAIL	Python project missing pyproject.toml"
 }
 
+check_settings_dangerous() {
+    local dir="$1"
+    local settings_file="$dir/.claude/settings.local.json"
+    [[ ! -f "$settings_file" ]] && { echo "SKIP"; return; }
+
+    if python3 "$SCRIPT_DIR/settings_optimizer.py" --check dangerous --project-dir "$dir" 2>/dev/null; then
+        echo "PASS"
+    else
+        echo "FAIL	Dangerous permission patterns detected"
+    fi
+}
+
+check_settings_clean() {
+    local dir="$1"
+    local settings_file="$dir/.claude/settings.local.json"
+    [[ ! -f "$settings_file" ]] && { echo "SKIP"; return; }
+
+    if python3 "$SCRIPT_DIR/settings_optimizer.py" --check clean --project-dir "$dir" 2>/dev/null; then
+        echo "PASS"
+    else
+        echo "FAIL	Redundant permissions or unmigrated WebFetch domains"
+    fi
+}
+
 # --- All checks in order ---
 ALL_CHECKS=(
     "README_EXISTS:check_readme_exists"
@@ -285,6 +310,8 @@ ALL_CHECKS=(
     "DEPENDABOT_EXISTS:check_dependabot_exists"
     "TRACKED_IGNORED:check_tracked_ignored"
     "PYTHON_PYPROJECT:check_python_pyproject"
+    "SETTINGS_DANGEROUS:check_settings_dangerous"
+    "SETTINGS_CLEAN:check_settings_clean"
 )
 
 # --- Run audit ---

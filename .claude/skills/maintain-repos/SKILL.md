@@ -44,7 +44,7 @@ Or for machine-readable output:
 {SKILL_DIR}/../../scripts/audit-repos.sh --json <repos-dir>
 ```
 
-### Checks (12 per repo)
+### Checks (14 per repo)
 
 | Check | What it detects |
 |-------|----------------|
@@ -60,6 +60,8 @@ Or for machine-readable output:
 | DEPENDABOT_EXISTS | .github/dependabot.yml exists |
 | TRACKED_IGNORED | No tracked files matching gitignore |
 | PYTHON_PYPROJECT | pyproject.toml exists (Python projects only) |
+| SETTINGS_DANGEROUS | No dangerous permission patterns (e.g. `Bash(*:*)`) |
+| SETTINGS_CLEAN | No redundant permissions or unmigrated WebFetch domains |
 
 ## Fix
 
@@ -75,6 +77,7 @@ REPOS_DIR="<repos-dir>"
 "$SCRIPTS/sync-license.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-claude-md.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-sandbox.sh" "$REPOS_DIR"
+"$SCRIPTS/sync-settings.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-dependabot.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-gitignore.sh" "$REPOS_DIR"
 ```
@@ -99,6 +102,7 @@ Process remaining failures per repo. For each repo with failures:
 4. For **GITIGNORE_COMPLETE**: append missing patterns to .gitignore
 5. For **TRACKED_IGNORED**: list the files and suggest `git rm --cached` commands
 6. For **PYTHON_PYPROJECT**: generate a minimal pyproject.toml
+7. For **SETTINGS_DANGEROUS**: list the dangerous patterns and require human review — do NOT auto-remove
 
 ### Step 4: Final Audit
 

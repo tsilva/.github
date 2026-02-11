@@ -57,7 +57,7 @@ Common options: `--dry-run` (preview without changes), `--filter PATTERN` (subst
 
 #### `audit-repos.sh`
 
-Comprehensive compliance audit — 12 checks per repo covering README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings, dependabot, tracked-ignored files, and Python config.
+Comprehensive compliance audit — 14 checks per repo covering README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings, dependabot, tracked-ignored files, Python config, and Claude settings optimization.
 
 ```bash
 ./scripts/audit-repos.sh ..
@@ -75,6 +75,7 @@ Idempotent scripts that ensure standard files exist. Only create missing files �
 | `sync-license.sh` | Create MIT LICENSE from template |
 | `sync-claude-md.sh` | Create minimal CLAUDE.md from template |
 | `sync-sandbox.sh` | Enable Claude sandbox in `.claude/settings.json` |
+| `sync-settings.sh` | Remove redundant permissions, migrate WebFetch domains to sandbox |
 | `sync-dependabot.sh` | Create `dependabot.yml` with auto-detected ecosystems |
 | `sync-repo-descriptions.sh` | Sync GitHub descriptions from README tagline |
 
