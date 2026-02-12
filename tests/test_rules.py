@@ -87,7 +87,7 @@ def test_readme_current_short(tmp_repo):
 
 def test_license_fix(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.license_exists import LicenseExistsRule
+    from tsilva_maintain.rules.file_exists import LicenseExistsRule
     rule = LicenseExistsRule()
     assert rule.check(repo).status == Status.FAIL
 
@@ -102,7 +102,7 @@ def test_license_fix(bare_repo):
 
 def test_claude_md_fix(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.claude_md_exists import ClaudeMdExistsRule
+    from tsilva_maintain.rules.file_exists import ClaudeMdExistsRule
     rule = ClaudeMdExistsRule()
     assert rule.check(repo).status == Status.FAIL
 
@@ -117,7 +117,7 @@ def test_gitignore_complete_fix(tmp_repo):
     # Remove some patterns
     (tmp_repo / ".gitignore").write_text("*.pyc\n")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.gitignore_complete import GitignoreCompleteRule
+    from tsilva_maintain.rules.gitignore import GitignoreCompleteRule
     rule = GitignoreCompleteRule()
     result = rule.check(repo)
     assert result.status == Status.FAIL
@@ -188,7 +188,7 @@ def test_stale_branches_clean(tmp_repo):
 def test_python_pyproject_skip(tmp_repo):
     """Non-Python repos should skip."""
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.python_pyproject import PythonPyprojectRule
+    from tsilva_maintain.rules.python import PythonPyprojectRule
     rule = PythonPyprojectRule()
     assert not rule.applies_to(repo)
 
@@ -196,7 +196,7 @@ def test_python_pyproject_skip(tmp_repo):
 def test_python_pyproject_pass(tmp_repo):
     (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n')
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.python_pyproject import PythonPyprojectRule
+    from tsilva_maintain.rules.python import PythonPyprojectRule
     result = PythonPyprojectRule().check(repo)
     assert result.status == Status.PASS
 
@@ -205,7 +205,7 @@ def test_readme_license_fix(tmp_repo):
     # Remove license reference from README
     (tmp_repo / "README.md").write_text("# test-repo\n\nA test repo.\n\n## Installation\n\npip install test-repo\n")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.readme_license import ReadmeLicenseRule
+    from tsilva_maintain.rules.readme_content import ReadmeLicenseRule
     rule = ReadmeLicenseRule()
     assert rule.check(repo).status == Status.FAIL
 

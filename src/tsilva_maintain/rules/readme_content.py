@@ -1,8 +1,9 @@
-"""Rule 1.3: README must reference license."""
+"""README content rules (license reference, CI badge)."""
 
 import re
 
 from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules._helpers import has_license_file
 
 
 def _readme_has_license_ref(readme_path) -> bool:
@@ -11,13 +12,6 @@ def _readme_has_license_ref(readme_path) -> bool:
         return bool(re.search(r"## license|# license|mit license|\[mit\]", content))
     except Exception:
         return False
-
-
-def _has_license_file(repo_path) -> bool:
-    for name in ("LICENSE", "LICENSE.md", "LICENSE.txt"):
-        if (repo_path / name).is_file():
-            return True
-    return False
 
 
 class ReadmeLicenseRule(Rule):
@@ -39,7 +33,7 @@ class ReadmeLicenseRule(Rule):
         readme = repo.path / "README.md"
         if not readme.is_file():
             return FixOutcome(FixOutcome.SKIPPED, "No README.md")
-        if not _has_license_file(repo.path):
+        if not has_license_file(repo.path):
             return FixOutcome(FixOutcome.SKIPPED, "No LICENSE file")
         if _readme_has_license_ref(readme):
             return FixOutcome(FixOutcome.ALREADY_OK)
@@ -51,3 +45,27 @@ class ReadmeLicenseRule(Rule):
             return FixOutcome(FixOutcome.FIXED, "Appended license section")
         except Exception as e:
             return FixOutcome(FixOutcome.FAILED, str(e))
+
+
+class ReadmeCiBadgeRule(Rule):
+    id = "README_CI_BADGE"
+    name = "README must have CI badge"
+    category = Category.REPO_STRUCTURE
+    rule_number = "1.4"
+    fix_type = FixType.NONE
+
+    def applies_to(self, repo):
+        return repo.has_workflows
+
+    def check(self, repo):
+        if not repo.has_workflows:
+            return CheckResult(Status.SKIP)
+
+        readme = repo.path / "README.md"
+        if not readme.is_file():
+            return CheckResult(Status.FAIL, "README.md does not exist")
+
+        content = readme.read_text(encoding="utf-8", errors="replace")
+        if re.search(r"actions/workflows/.*badge|shields\.io.*workflow|!\[.*\]\(.*actions/workflows", content):
+            return CheckResult(Status.PASS)
+        return CheckResult(Status.FAIL, "README missing CI badge")
