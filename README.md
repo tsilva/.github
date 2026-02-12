@@ -5,7 +5,7 @@
 
   Shared reusable GitHub Actions workflows and org-wide maintenance tooling for the `tsilva` organization
 
-  [Workflows](#-workflows) · [CLI](#-cli-tsilva-maintain) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
+  [Workflows](#workflows) · [CLI](#cli-tsilva-maintain) · [Usage](#usage) · [Pre-commit Hook](#pre-commit-hook)
 </div>
 
 ## Features
@@ -68,6 +68,7 @@ tsilva-maintain audit ~/repos/tsilva
 tsilva-maintain audit --json ~/repos/tsilva
 tsilva-maintain audit --filter myrepo ~/repos/tsilva
 tsilva-maintain audit --rule README_EXISTS ~/repos/tsilva
+tsilva-maintain audit --category "Git Hygiene" ~/repos/tsilva
 
 # Fix — auto-fix failing checks (11 rules have auto-fixes)
 tsilva-maintain fix ~/repos/tsilva
@@ -104,35 +105,67 @@ class MyRule(Rule):
 
 The rule is auto-discovered — no registration needed.
 
-### Compliance Checks (25)
+### Compliance Rules
 
-| Check | What it detects |
-|-------|----------------|
-| `DEFAULT_BRANCH` | Repo has a "main" branch |
-| `README_EXISTS` | README.md file exists |
-| `README_CURRENT` | No placeholders, adequate length, has install/usage |
-| `README_LICENSE` | README mentions license |
-| `README_LOGO` | README references the project logo |
-| `LOGO_EXISTS` | Logo in standard locations |
-| `LICENSE_EXISTS` | LICENSE/LICENSE.md/LICENSE.txt exists |
-| `GITIGNORE_EXISTS` | .gitignore exists |
-| `GITIGNORE_COMPLETE` | Essential patterns present |
-| `CLAUDE_MD_EXISTS` | CLAUDE.md exists |
-| `CLAUDE_SANDBOX` | Sandbox enabled in .claude/settings*.json |
-| `DEPENDABOT_EXISTS` | .github/dependabot.yml exists |
-| `PRECOMMIT_GITLEAKS` | .pre-commit-config.yaml has gitleaks hook |
-| `TRACKED_IGNORED` | No tracked files matching gitignore |
-| `PENDING_COMMITS` | No uncommitted changes or unpushed commits |
-| `STALE_BRANCHES` | No merged or inactive (>90d) branches |
-| `PYTHON_PYPROJECT` | pyproject.toml exists (Python projects only) |
-| `PYTHON_MIN_VERSION` | requires-python field in pyproject.toml |
-| `SETTINGS_DANGEROUS` | No dangerous permission patterns |
+**Repository Structure**
+
+| ID | Rule |
+|----|------|
+| `README_EXISTS` | README.md must exist |
+| `README_CURRENT` | README must have no placeholders, be >100 chars, and include install/usage sections |
+| `README_LICENSE` | README must reference the license |
+| `README_CI_BADGE` | README must have a CI badge (repos with workflows) |
+| `README_LOGO` | README must reference the project logo |
+| `LOGO_EXISTS` | A logo file must exist in a standard location |
+| `LICENSE_EXISTS` | LICENSE file must exist |
+| `GITIGNORE_EXISTS` | .gitignore must exist |
+| `GITIGNORE_COMPLETE` | .gitignore must include essential patterns (.env, .DS_Store, node_modules/, __pycache__/, *.pyc, .venv/) |
+| `TRACKED_IGNORED` | No tracked files should match .gitignore patterns |
+| `REPO_DESCRIPTION` | GitHub repo description must match README tagline |
+
+**Dependency Management**
+
+| ID | Rule |
+|----|------|
+| `DEPENDABOT_EXISTS` | .github/dependabot.yml must exist |
+
+**Python Projects**
+
+| ID | Rule |
+|----|------|
+| `PYTHON_PYPROJECT` | Python projects must use pyproject.toml |
+| `PYTHON_MIN_VERSION` | pyproject.toml must specify requires-python |
+
+**CI/CD**
+
+| ID | Rule |
+|----|------|
+| `CI_WORKFLOW` | Python repos must have a CI workflow |
+| `RELEASE_WORKFLOW` | Versioned projects must have a release workflow |
+
+**Claude Code Configuration**
+
+| ID | Rule |
+|----|------|
+| `CLAUDE_MD_EXISTS` | CLAUDE.md must exist |
+| `CLAUDE_SANDBOX` | Claude Code sandbox must be enabled |
+| `SETTINGS_DANGEROUS` | No dangerous permission patterns in Claude settings |
 | `SETTINGS_CLEAN` | No redundant permissions or unmigrated WebFetch domains |
-| `README_CI_BADGE` | README has CI status badge |
-| `CI_WORKFLOW` | Python repos reference test.yml/release.yml/pytest |
-| `RELEASE_WORKFLOW` | Versioned projects reference release.yml |
-| `PII_SCAN` | CI workflows include PII scanning |
-| `REPO_DESCRIPTION` | GitHub description matches README tagline |
+
+**Security**
+
+| ID | Rule |
+|----|------|
+| `PII_SCAN` | CI must include gitleaks secret scanning |
+| `PRECOMMIT_GITLEAKS` | Pre-commit must include gitleaks hook |
+
+**Git Hygiene**
+
+| ID | Rule |
+|----|------|
+| `DEFAULT_BRANCH` | Default branch must be `main` |
+| `PENDING_COMMITS` | No uncommitted changes or unpushed commits |
+| `STALE_BRANCHES` | No merged or inactive (>90 days) branches |
 
 ## Usage
 
