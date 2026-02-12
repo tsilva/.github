@@ -44,7 +44,7 @@ Or for machine-readable output:
 {SKILL_DIR}/../../scripts/audit-repos.sh --json <repos-dir>
 ```
 
-### Checks (19 per repo)
+### Checks (25 per repo)
 
 | Check | What it detects |
 |-------|----------------|
@@ -65,32 +65,29 @@ Or for machine-readable output:
 | PENDING_COMMITS | No uncommitted changes or unpushed commits |
 | STALE_BRANCHES | No merged or inactive (>90d) branches |
 | PYTHON_PYPROJECT | pyproject.toml exists (Python projects only) |
+| PYTHON_MIN_VERSION | requires-python field in pyproject.toml |
 | SETTINGS_DANGEROUS | No dangerous permission patterns (e.g. `Bash(*:*)`) |
 | SETTINGS_CLEAN | No redundant permissions or unmigrated WebFetch domains |
+| README_CI_BADGE | README has CI status badge (skips if no workflows) |
+| CI_WORKFLOW | Python repos reference test.yml/release.yml/pytest |
+| RELEASE_WORKFLOW | Versioned projects reference release.yml |
+| PII_SCAN | CI workflows include PII scanning (skips if no workflows) |
+| REPO_DESCRIPTION | GitHub description matches README tagline |
 
 ## Fix
 
 ### Step 1: Apply Safe Fixes (automatic, no AI needed)
 
-Run sync scripts for deterministic fixes. These are safe to run without review:
+Run the meta-script that executes all sync scripts in sequence:
 
 ```bash
 SCRIPTS="{SKILL_DIR}/../../scripts"
 REPOS_DIR="<repos-dir>"
 
-# Run all safe sync scripts
-"$SCRIPTS/sync-license.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-claude-md.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-sandbox.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-settings.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-dependabot.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-gitignore.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-readme-license.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-readme-logo.sh" "$REPOS_DIR"
-"$SCRIPTS/sync-precommit.sh" "$REPOS_DIR"
+"$SCRIPTS/sync-all.sh" "$REPOS_DIR"
 ```
 
-Each script only creates files that are missing — existing files are never overwritten.
+Each sub-script only creates files that are missing — existing files are never overwritten.
 
 ### Step 2: Re-audit to Find Remaining Failures
 

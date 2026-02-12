@@ -16,10 +16,11 @@ Usage: $(basename "$0") [OPTIONS] <repos-dir>
 
 Audits all git repos for compliance with tsilva org standards.
 
-Checks: default branch, README, logo, LICENSE, .gitignore, CLAUDE.md,
-sandbox settings, dependabot config, pre-commit gitleaks hook,
-tracked-ignored files, pending commits, stale branches,
-Python project config, Claude settings (dangerous patterns, redundant permissions).
+Checks: default branch, README (exists, current, license, logo, CI badge),
+logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings, dependabot config,
+pre-commit gitleaks hook, tracked-ignored files, pending commits, stale branches,
+Python config (pyproject.toml, min version), CI/release workflows, PII scanning,
+repo description, Claude settings (dangerous patterns, redundant permissions).
 
 Arguments:
     repos-dir       Directory containing git repositories
@@ -304,6 +305,141 @@ check_settings_clean() {
     fi
 }
 
+check_python_min_version() {
+    local dir="$1"
+    [[ ! -f "$dir/pyproject.toml" ]] && { echo "SKIP"; return; }
+
+    if python3 -c "
+import tomllib, sys
+with open('$dir/pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+rp = data.get('project', {}).get('requires-python', '')
+sys.exit(0 if rp else 1)
+" 2>/dev/null; then
+        echo "PASS"
+    else
+        echo "FAIL	pyproject.toml missing requires-python"
+    fi
+}
+
+check_readme_ci_badge() {
+    local dir="$1"
+    local readme="$dir/README.md"
+
+    # Skip if no workflows exist
+    if ! ls "$dir/.github/workflows/"*.yml &>/dev/null && \
+       ! ls "$dir/.github/workflows/"*.yaml &>/dev/null; then
+        echo "SKIP"
+        return
+    fi
+
+    [[ ! -f "$readme" ]] && { echo "FAIL	README.md does not exist"; return; }
+
+    if grep -qE 'actions/workflows/.*badge|shields\.io.*workflow|!\[.*\]\(.*actions/workflows' "$readme" 2>/dev/null; then
+        echo "PASS"
+    else
+        echo "FAIL	README missing CI badge"
+    fi
+}
+
+check_ci_workflow() {
+    local dir="$1"
+
+    # Skip if not a Python project
+    local is_python=false
+    [[ -f "$dir/pyproject.toml" || -f "$dir/setup.py" || -f "$dir/requirements.txt" ]] && is_python=true
+    if ! $is_python; then
+        echo "SKIP"
+        return
+    fi
+
+    if ls "$dir/.github/workflows/"*.yml "$dir/.github/workflows/"*.yaml 2>/dev/null | \
+       xargs grep -lE 'tsilva/\.github/.*/(test|release|ci)\.yml|pytest' 2>/dev/null | \
+       head -1 | grep -q .; then
+        echo "PASS"
+    else
+        echo "FAIL	No CI workflow referencing test.yml/release.yml/pytest"
+    fi
+}
+
+check_release_workflow() {
+    local dir="$1"
+    [[ ! -f "$dir/pyproject.toml" ]] && { echo "SKIP"; return; }
+
+    # Skip if no version in pyproject.toml
+    if ! python3 -c "
+import tomllib, sys
+with open('$dir/pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+v = data.get('project', {}).get('version', '')
+sys.exit(0 if v else 1)
+" 2>/dev/null; then
+        echo "SKIP"
+        return
+    fi
+
+    if ls "$dir/.github/workflows/"*.yml "$dir/.github/workflows/"*.yaml 2>/dev/null | \
+       xargs grep -lE 'tsilva/\.github/.*/(release|publish-pypi)\.yml' 2>/dev/null | \
+       head -1 | grep -q .; then
+        echo "PASS"
+    else
+        echo "FAIL	Versioned project missing release workflow"
+    fi
+}
+
+check_pii_scan() {
+    local dir="$1"
+
+    # Skip if no workflows exist
+    if ! ls "$dir/.github/workflows/"*.yml &>/dev/null && \
+       ! ls "$dir/.github/workflows/"*.yaml &>/dev/null; then
+        echo "SKIP"
+        return
+    fi
+
+    if ls "$dir/.github/workflows/"*.yml "$dir/.github/workflows/"*.yaml 2>/dev/null | \
+       xargs grep -lE 'pii-scan\.yml|release\.yml|gitleaks-action' 2>/dev/null | \
+       head -1 | grep -q .; then
+        echo "PASS"
+    else
+        echo "FAIL	No PII scanning in CI workflows"
+    fi
+}
+
+check_repo_description() {
+    local dir="$1"
+
+    # Skip if gh not available or not authenticated
+    if ! command -v gh &>/dev/null || ! gh auth status &>/dev/null 2>&1; then
+        echo "SKIP"
+        return
+    fi
+
+    local remote_url
+    remote_url=$(git -C "$dir" remote get-url origin 2>/dev/null || true)
+    [[ -z "$remote_url" ]] && { echo "SKIP"; return; }
+
+    local github_repo
+    github_repo=$(extract_github_remote "$remote_url" 2>/dev/null || true)
+    [[ -z "$github_repo" ]] && { echo "SKIP"; return; }
+
+    # Extract local tagline
+    local tagline=""
+    if [[ -f "$dir/README.md" ]]; then
+        tagline=$(python3 "$SCRIPT_DIR/lib/extract_tagline.py" "$dir/README.md" 2>/dev/null || true)
+    fi
+    [[ -z "$tagline" ]] && { echo "SKIP"; return; }
+
+    local github_desc
+    github_desc=$(gh repo view "$github_repo" --json description -q '.description // ""' 2>/dev/null || true)
+
+    if [[ "$tagline" == "$github_desc" ]]; then
+        echo "PASS"
+    else
+        echo "FAIL	Description mismatch (GitHub vs README tagline)"
+    fi
+}
+
 check_default_branch() {
     local dir="$1"
     if git -C "$dir" rev-parse --verify main &>/dev/null; then
@@ -368,7 +504,7 @@ check_stale_branches() {
     fi
     # Inactive >90 days (exclude main/master)
     local cutoff
-    cutoff=$(date -v-90d +%s)
+    cutoff=$(( $(date +%s) - 90 * 86400 ))
     local stale_names=()
     while IFS=' ' read -r branch epoch; do
         [[ -z "$branch" ]] && continue
@@ -410,8 +546,14 @@ ALL_CHECKS=(
     "PENDING_COMMITS:check_pending_commits"
     "STALE_BRANCHES:check_stale_branches"
     "PYTHON_PYPROJECT:check_python_pyproject"
+    "PYTHON_MIN_VERSION:check_python_min_version"
     "SETTINGS_DANGEROUS:check_settings_dangerous"
     "SETTINGS_CLEAN:check_settings_clean"
+    "README_CI_BADGE:check_readme_ci_badge"
+    "CI_WORKFLOW:check_ci_workflow"
+    "RELEASE_WORKFLOW:check_release_workflow"
+    "PII_SCAN:check_pii_scan"
+    "REPO_DESCRIPTION:check_repo_description"
 )
 
 # --- Run audit ---

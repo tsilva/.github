@@ -28,6 +28,8 @@
 | `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
 | `test.yml` | Run tests | Uses pytest via uv |
 | `pii-scan.yml` | Scan for credentials/secrets | Uses gitleaks-action v2 |
+| `ci.yml` | PR-time checks | Composes test + pii-scan in parallel |
+| `audit.yml` | Scheduled compliance audit | Weekly + on-demand, all org repos |
 
 ### `release.yml` (Composer)
 
@@ -57,7 +59,7 @@ Common options: `--dry-run` (preview without changes), `--filter PATTERN` (subst
 
 #### `audit-repos.sh`
 
-Comprehensive compliance audit — 19 checks per repo covering README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings, dependabot, pre-commit gitleaks hook, tracked-ignored files, Python config, and Claude settings optimization.
+Comprehensive compliance audit — 25 checks per repo covering README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings, dependabot, pre-commit gitleaks hook, tracked-ignored files, Python config (pyproject.toml, min version), CI/release workflows, PII scanning, repo description, and Claude settings optimization.
 
 ```bash
 ./scripts/audit-repos.sh ..
@@ -78,13 +80,22 @@ Idempotent scripts that ensure standard files exist. Only create missing files �
 | `sync-settings.sh` | Remove redundant permissions, migrate WebFetch domains to sandbox |
 | `sync-dependabot.sh` | Create `dependabot.yml` with auto-detected ecosystems |
 | `sync-precommit.sh` | Create/append gitleaks pre-commit hook config |
+| `sync-readme-license.sh` | Append license section to README if missing |
+| `sync-readme-logo.sh` | Insert logo reference in README if missing |
 | `sync-repo-descriptions.sh` | Sync GitHub descriptions from README tagline |
+| `sync-all.sh` | Run all sync scripts in sequence (`--online` for network ops) |
 
 ```bash
 # Dry run any sync script
 ./scripts/sync-license.sh --dry-run ..
 ./scripts/sync-dependabot.sh --dry-run ..
 ```
+
+### Git Operations
+
+| Script | Purpose |
+|--------|---------|
+| `commit-repos.sh` | Interactive AI-assisted commit & push for dirty repos |
 
 ### Reports
 
@@ -126,8 +137,6 @@ Claude Code skills for AI-dependent maintenance operations (in `.claude/skills/`
 | Skill | Purpose |
 |-------|---------|
 | `maintain-repos` | Orchestrator: audit → sync scripts → AI fixes |
-| `fix-readme` | README remediation (delegates to `project-readme-author`) |
-| `fix-logo` | Logo remediation (delegates to `project-logo-author`) |
 
 ## Usage
 
@@ -166,10 +175,8 @@ on:
   pull_request:
 
 jobs:
-  test:
-    uses: tsilva/.github/.github/workflows/test.yml@main
-  pii-scan:
-    uses: tsilva/.github/.github/workflows/pii-scan.yml@main
+  ci:
+    uses: tsilva/.github/.github/workflows/ci.yml@main
 ```
 
 ## Pre-commit Hook

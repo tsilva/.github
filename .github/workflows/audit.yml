@@ -1,0 +1,75 @@
+name: Audit
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"  # Monday 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout .github repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Clone org repos
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p repos
+          gh repo list tsilva --no-archived --limit 100 --json name -q '.[].name' | while read -r repo; do
+            gh repo clone "tsilva/$repo" "repos/$repo" -- --depth 1 2>/dev/null || echo "Skipped: $repo"
+          done
+
+      - name: Run audit
+        id: audit
+        run: |
+          chmod +x scripts/audit-repos.sh
+          scripts/audit-repos.sh --json repos > audit-results.json || true
+
+      - name: Generate summary
+        run: |
+          echo "## Compliance Audit Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          python3 -c "
+          import json, sys
+          with open('audit-results.json') as f:
+              data = json.load(f)
+          s = data['summary']
+          print(f'**Date:** {data[\"audit_time\"]}')
+          print(f'**Repos:** {data[\"repos_count\"]}')
+          print(f'**Pass rate:** {s[\"pass_rate\"]}% ({s[\"passed\"]}/{s[\"total_checks\"]})')
+          print()
+          print('| Repo | Passed | Failed |')
+          print('|------|--------|--------|')
+          for r in data['repos']:
+              rs = r['summary']
+              status = ':white_check_mark:' if rs['failed'] == 0 else ':x:'
+              print(f'| {status} {r[\"repo\"]} | {rs[\"passed\"]} | {rs[\"failed\"]} |')
+          failed = [r for r in data['repos'] if r['summary']['failed'] > 0]
+          if failed:
+              print()
+              print('### Failures')
+              print()
+              for r in failed:
+                  checks = [c for c in r['checks'] if c['status'] == 'failed']
+                  print(f'**{r[\"repo\"]}**')
+                  for c in checks:
+                      print(f'- \`{c[\"check\"]}\`: {c[\"message\"]}')
+                  print()
+          " >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-results
+          path: audit-results.json
+          retention-days: 90

@@ -12,27 +12,27 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 
 - **Applies to:** all repos
 - **Check:** `README_EXISTS` — automated
-- **Fix:** `fix-readme` skill (delegates to `project-readme-author`) — automated
+- **Fix:** `maintain-repos` skill (delegates to `project-readme-author`) — automated
 - **Details:** Every repo must have a `README.md` at the root.
 
 ### 1.2 README must be current
 
 - **Applies to:** all repos
 - **Check:** `README_CURRENT` — automated
-- **Fix:** `fix-readme` skill (delegates to `project-readme-author`) — automated
+- **Fix:** `maintain-repos` skill (delegates to `project-readme-author`) — automated
 - **Details:** README must not contain placeholders (TODO, FIXME, Coming soon, Work in progress, Under construction, Lorem ipsum), must be longer than 100 characters, and must include installation or usage sections.
 
 ### 1.3 README must reference license
 
 - **Applies to:** all repos
 - **Check:** `README_LICENSE` — automated
-- **Fix:** `fix-readme` skill — automated
+- **Fix:** `sync-readme-license.sh` / `maintain-repos` skill — automated
 - **Details:** README must contain a license heading or mention "MIT" license. A `## License` section with "MIT" is the standard format.
 
 ### 1.4 README must have CI badge
 
 - **Applies to:** repos with CI workflows
-- **Check:** not implemented
+- **Check:** `README_CI_BADGE` — automated
 - **Fix:** not implemented
 - **Details:** Repos that have a GitHub Actions CI workflow must display a CI status badge in the README.
 
@@ -40,21 +40,21 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 
 - **Applies to:** all repos
 - **Check:** `LOGO_EXISTS` — automated
-- **Fix:** `fix-logo` skill (delegates to `project-logo-author`) — automated
+- **Fix:** `maintain-repos` skill (delegates to `project-logo-author`) — automated
 - **Details:** A logo must exist in a standard location (`logo.png`, `logo.svg`, `logo.jpg`, or under `assets/`, `images/`, `.github/`). Logo should be a square icon with transparent background, 512x512 or similar.
 
 ### 1.6 README must reference logo
 
 - **Applies to:** all repos
 - **Check:** `README_LOGO` — automated
-- **Fix:** `fix-readme` skill — AI-dependent
+- **Fix:** `sync-readme-logo.sh` / `maintain-repos` skill — automated
 - **Details:** README.md must contain an image reference to the project logo (markdown `![...](logo.png)` or HTML `<img>`). Logo may be at root or under `assets/`, `images/`, or `.github/`.
 
 ### 1.7 Logo must contain repo name
 
 - **Applies to:** all repos
 - **Check:** not implemented (requires visual inspection)
-- **Fix:** `fix-logo` skill (delegates to `project-logo-author`) — AI-dependent
+- **Fix:** `maintain-repos` skill (delegates to `project-logo-author`) — AI-dependent
 - **Details:** The project logo must visually include the repository name as text alongside the icon. Verified during AI-assisted maintenance via visual inspection.
 
 ### 1.8 LICENSE must exist
@@ -88,7 +88,7 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 ### 1.12 GitHub description must match README tagline
 
 - **Applies to:** all repos
-- **Check:** not implemented
+- **Check:** `REPO_DESCRIPTION` — automated
 - **Fix:** `sync-repo-descriptions.sh` — automated
 - **Details:** The GitHub repository description must match the README tagline (or `pyproject.toml` description as fallback). The sync script extracts the tagline and updates the GitHub description via `gh api`.
 
@@ -124,7 +124,7 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 ### 3.3 Must specify minimum Python version
 
 - **Applies to:** Python repos
-- **Check:** not implemented
+- **Check:** `PYTHON_MIN_VERSION` — automated
 - **Fix:** not implemented
 - **Details:** `pyproject.toml` must include a `requires-python` field specifying the minimum Python version the project supports (e.g., `requires-python = ">=3.10"`).
 
@@ -149,14 +149,14 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 ### 4.1 Python repos must have a CI workflow
 
 - **Applies to:** Python repos
-- **Check:** not implemented
+- **Check:** `CI_WORKFLOW` — automated
 - **Fix:** not implemented
 - **Details:** Python repos must have a GitHub Actions workflow that runs tests on push. Should reference the reusable `test.yml` workflow from this repo.
 
 ### 4.2 Release workflow for versioned projects
 
 - **Applies to:** repos with version in `pyproject.toml`
-- **Check:** not implemented
+- **Check:** `RELEASE_WORKFLOW` — automated
 - **Fix:** not implemented
 - **Details:** Projects that define a version must use the reusable `release.yml` workflow to automate release creation. Python projects use `publish_to_pypi: true`; non-Python use `publish_to_pypi: false`.
 
@@ -199,7 +199,7 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 ### 6.1 PII scanning in CI
 
 - **Applies to:** all repos with CI
-- **Check:** not implemented
+- **Check:** `PII_SCAN` — automated
 - **Fix:** implicit via `release.yml` (chains `pii-scan.yml`)
 - **Details:** Repositories must run gitleaks for secret/credential scanning as part of CI. Repos using the `release.yml` reusable workflow get this automatically. Repos with custom CI should add `pii-scan.yml` explicitly.
 
@@ -241,24 +241,18 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 
 | Metric | Count | Rules |
 |--------|-------|-------|
-| **Audit checks** | 19 of 29 | 1.1-1.3, 1.5-1.6, 1.8-1.11, 2.1, 3.1, 5.1-5.4, 6.2, 7.1-7.3 |
-| **Automated fixes** (sync scripts) | 8 scripts covering 9 rules | 1.8-1.10, 1.12, 2.1, 5.1, 5.2, 5.4, 6.2 |
-| **AI-dependent fixes** (skills) | 3 skills covering 5 rules | 1.1-1.3, 1.5-1.6, 1.7 |
+| **Audit checks** | 25 of 29 | 1.1-1.6, 1.8-1.12, 2.1, 3.1, 3.3, 4.1-4.2, 5.1-5.4, 6.1-6.2, 7.1-7.3 |
+| **Automated fixes** (sync scripts) | 10 scripts covering 11 rules | 1.3, 1.6, 1.8-1.10, 1.12, 2.1, 5.1, 5.2, 5.4, 6.2 |
+| **AI-dependent fixes** (skills) | 1 skill covering 5 rules | 1.1-1.2, 1.5, 1.7 (via `maintain-repos`) |
 | **Manual fix only** | 5 rules | 1.11, 5.3, 7.1-7.3 |
-| **No automation** | 10 rules | 1.4, 1.7 (check only), 1.12 (check only), 3.2-3.5, 4.1-4.2, 6.1 |
+| **No automation** | 4 rules | 1.7 (check only), 3.2, 3.4-3.5 |
 
 ## Implementation Backlog
 
-Unimplemented rules, ordered by implementation complexity (simplest first):
+Unimplemented checks, ordered by implementation complexity (simplest first):
 
 | Priority | Check ID | Rule | Complexity |
 |----------|----------|------|------------|
-| 1 | `PYTHON_MIN_VERSION` | 3.3 — requires-python field | Simple pyproject.toml field check |
-| 2 | `README_CI_BADGE` | 1.4 — CI badge in README | Regex for badge URL + workflow existence check |
-| 3 | `PYTHON_CI_WORKFLOW` | 4.1 — CI workflow exists | Check for workflow YAML referencing reusable workflows |
-| 4 | `REPO_DESCRIPTION` | 1.12 — description matches tagline | Compare GitHub API description vs README tagline |
-| 5 | `PYTHON_UV_INSTALL` | 3.2 — UV installable | Validate pyproject.toml structure for PEP 621 |
-| 6 | `PYTHON_CLI_PYPI` | 3.4 — CLI on PyPI | Detect `[project.scripts]`, verify release workflow |
-| 7 | `RELEASE_WORKFLOW` | 4.2 — release workflow exists | Check versioned projects reference release.yml |
-| 8 | `PII_SCAN_ENABLED` | 6.1 — gitleaks in CI | Implicit if using release.yml, explicit check otherwise |
-| 9 | `PYTHON_CLI_HOMEBREW` | 3.5 — CLI on Homebrew | Needs Homebrew tap strategy decided first |
+| 1 | `PYTHON_UV_INSTALL` | 3.2 — UV installable | Validate pyproject.toml structure for PEP 621 |
+| 2 | `PYTHON_CLI_PYPI` | 3.4 — CLI on PyPI | Detect `[project.scripts]`, verify release workflow |
+| 3 | `PYTHON_CLI_HOMEBREW` | 3.5 — CLI on Homebrew | Needs Homebrew tap strategy decided first |

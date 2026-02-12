@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.12"
+      pytest-args:
+        type: string
+        default: ""
+
+jobs:
+  test:
+    uses: tsilva/.github/.github/workflows/test.yml@main
+    with:
+      python-version: ${{ inputs.python-version }}
+      pytest-args: ${{ inputs.pytest-args }}
+
+  pii-scan:
+    uses: tsilva/.github/.github/workflows/pii-scan.yml@main

@@ -56,6 +56,16 @@ Runs tests with [pytest](https://docs.pytest.org/).
 - **Timeout:** 10 minutes
 - Gracefully skips when no tests are found (pytest exit code 5)
 
+### `ci.yml`
+
+Composes `test.yml` + `pii-scan.yml` in parallel for PR-time checks. Caller repos use a single `uses:` line instead of composing manually.
+
+- **Inputs:** `python-version` (string, default `"3.12"`), `pytest-args` (string, default `""`)
+
+### `audit.yml`
+
+Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `audit-repos.sh --json`, posts results to GitHub Step Summary, uploads JSON artifact.
+
 ### `release.yml` (composer)
 
 Chains the above workflows together.
@@ -96,7 +106,7 @@ Set `publish_to_pypi: false` for non-Python repos:
 
 ### Audit
 
-- `audit-repos.sh` — comprehensive compliance audit (19 checks per repo, `--json` for machine output)
+- `audit-repos.sh` — comprehensive compliance audit (25 checks per repo, `--json` for machine output)
 
 ### Sync (safe, idempotent)
 
@@ -110,6 +120,7 @@ Set `publish_to_pypi: false` for non-Python repos:
 - `sync-readme-logo.sh` — insert logo reference in README if missing
 - `sync-precommit.sh` — create/append gitleaks pre-commit hook config
 - `sync-repo-descriptions.sh` — sync GitHub descriptions from README tagline
+- `sync-all.sh` — run all sync scripts in sequence (`--online` flag adds network-dependent scripts)
 
 ### Git Operations
 
