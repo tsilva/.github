@@ -20,6 +20,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install tsilva-maintain
+        run: uv pip install --system -e .
+
       - name: Clone org repos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,9 +37,7 @@ jobs:
 
       - name: Run audit
         id: audit
-        run: |
-          chmod +x scripts/audit-repos.sh
-          scripts/audit-repos.sh --json repos > audit-results.json || true
+        run: tsilva-maintain audit --json repos > audit-results.json || true
 
       - name: Generate summary
         run: |

@@ -5,7 +5,7 @@
 
   Shared reusable GitHub Actions workflows and org-wide maintenance tooling for the `tsilva` organization
 
-  [Workflows](#-workflows) · [CLI](#-cli-tsilva-maintain) · [Scripts](#-scripts-legacy) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
+  [Workflows](#-workflows) · [CLI](#-cli-tsilva-maintain) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
 </div>
 
 ## Features
@@ -133,19 +133,6 @@ The rule is auto-discovered — no registration needed.
 | `RELEASE_WORKFLOW` | Versioned projects reference release.yml |
 | `PII_SCAN` | CI workflows include PII scanning |
 | `REPO_DESCRIPTION` | GitHub description matches README tagline |
-
-## Scripts (legacy)
-
-> **Deprecated** — use `tsilva-maintain` instead. Scripts are kept during transition.
-
-| Script | Replacement |
-|--------|-------------|
-| `audit-repos.sh` | `tsilva-maintain audit` |
-| `sync-*.sh` | `tsilva-maintain fix` |
-| `commit-repos.sh` | `tsilva-maintain commit` |
-| `report-taglines.sh` | `tsilva-maintain report taglines` |
-| `check-tracked-ignored.sh` | `tsilva-maintain report tracked-ignored` |
-| `set-secret-all-repos.sh` | *(no replacement, still active)* |
 
 ## Usage
 

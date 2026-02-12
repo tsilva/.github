@@ -2,7 +2,7 @@
 
 ## Repository Purpose
 
-Shared GitHub Actions reusable workflows and org-wide maintenance tooling for the `tsilva` GitHub organization. Caller repositories reference workflows from this repo to standardize CI/CD across projects. Maintenance scripts audit and enforce repo compliance standards.
+Shared GitHub Actions reusable workflows and org-wide maintenance tooling for the `tsilva` GitHub organization. Caller repositories reference workflows from this repo to standardize CI/CD across projects. The Python CLI (`tsilva-maintain`) audits and enforces repo compliance standards.
 
 ## Architecture
 
@@ -16,12 +16,9 @@ The primary maintenance tool. A Python package in `src/tsilva_maintain/` install
 
 Commands: `tsilva-maintain audit|fix|maintain|commit|report`
 
-### Scripts (legacy)
+### Scripts
 
-Bash scripts in `scripts/` are the original implementation, kept during transition. The Python CLI (`tsilva-maintain`) replaces them. Scripts share common infrastructure:
-
-- `scripts/lib/style.sh` — terminal styling (colors, log functions, NO_COLOR support)
-- `scripts/lib/common.sh` — argument parsing (`--dry-run`, `--filter`, `<repos-dir>`), repo discovery, GitHub remote extraction
+Only `scripts/set-secret-all-repos.sh` remains (no Python replacement). It depends on `scripts/lib/style.sh` and `scripts/lib/common.sh`.
 
 ### Skills
 
@@ -68,7 +65,7 @@ Composes `test.yml` + `pii-scan.yml` in parallel for PR-time checks. Caller repo
 
 ### `audit.yml`
 
-Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `audit-repos.sh --json`, posts results to GitHub Step Summary, uploads JSON artifact.
+Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `tsilva-maintain audit --json`, posts results to GitHub Step Summary, uploads JSON artifact.
 
 ### `release.yml` (composer)
 
@@ -163,40 +160,9 @@ The rule is auto-discovered. Add its ID to `_CANONICAL_ORDER` in `rules/_registr
 pytest tests/
 ```
 
-## Scripts (legacy, deprecated)
+## Scripts
 
-> **Use `tsilva-maintain` instead.** These scripts are kept during transition.
-
-### Audit
-
-- `audit-repos.sh` — comprehensive compliance audit (25 checks per repo, `--json` for machine output)
-
-### Sync (safe, idempotent)
-
-- `sync-gitignore.sh` — append missing rules from `gitignore.global`
-- `sync-license.sh` — create MIT LICENSE from template
-- `sync-claude-md.sh` — create minimal CLAUDE.md from template
-- `sync-sandbox.sh` — enable Claude sandbox in `.claude/settings.json`
-- `sync-settings.sh` — remove redundant permissions, migrate WebFetch domains to sandbox
-- `sync-dependabot.sh` — create `dependabot.yml` with auto-detected ecosystems
-- `sync-readme-license.sh` — append license section to README if missing
-- `sync-readme-logo.sh` — insert logo reference in README if missing
-- `sync-precommit.sh` — create/append gitleaks pre-commit hook config
-- `sync-repo-descriptions.sh` — sync GitHub descriptions from README tagline
-- `sync-all.sh` — run all sync scripts in sequence (`--online` flag adds network-dependent scripts)
-
-### Git Operations
-
-- `commit-repos.sh` — interactive AI-assisted commit & push for dirty repos
-
-### Reports
-
-- `report-taglines.sh` — tabular report of repo taglines
-- `check-tracked-ignored.sh` — find tracked files matching gitignore
-
-### Utilities
-
-- `set-secret-all-repos.sh` — set GitHub secret across all repos
+- `set-secret-all-repos.sh` — set GitHub secret across all repos (no CLI replacement)
 
 ## Pre-commit Hook
 
