@@ -55,16 +55,7 @@ for i in "${!REPOS[@]}"; do
     dir="${REPOS[$i]}"
     repo_name="${REPO_NAMES[$i]}"
 
-    # Check if any license variant exists
-    has_license=false
-    for name in LICENSE LICENSE.md LICENSE.txt; do
-        if [[ -f "$dir/$name" ]]; then
-            has_license=true
-            break
-        fi
-    done
-
-    if $has_license; then
+    if has_license_file "$dir"; then
         success "$repo_name (license exists)"
         ((in_sync++))
         continue

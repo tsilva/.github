@@ -57,23 +57,14 @@ for i in "${!REPOS[@]}"; do
     fi
 
     # Skip if no LICENSE file
-    has_license=false
-    for name in LICENSE LICENSE.md LICENSE.txt; do
-        if [[ -f "$dir/$name" ]]; then
-            has_license=true
-            break
-        fi
-    done
-
-    if ! $has_license; then
+    if ! has_license_file "$dir"; then
         skip "$repo_name (no LICENSE file)"
         ((skipped++))
         continue
     fi
 
     # Check if README already mentions license
-    content_lower=$(tr '[:upper:]' '[:lower:]' < "$dir/README.md")
-    if echo "$content_lower" | grep -qE '## license|# license|mit license|\[mit\]'; then
+    if readme_has_license_ref "$dir/README.md"; then
         success "$repo_name (license section exists)"
         ((in_sync++))
         continue

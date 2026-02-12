@@ -33,14 +33,6 @@ EOF
 
 parse_args "$@"
 
-# Standard logo locations (same as audit-repos.sh check_logo_exists)
-LOGO_LOCATIONS=(
-    "logo.png" "logo.svg" "logo.jpg"
-    "assets/logo.png" "assets/logo.svg"
-    "images/logo.png" "images/logo.svg"
-    ".github/logo.png" ".github/logo.svg"
-)
-
 # Counters
 updated=0
 in_sync=0
@@ -80,12 +72,8 @@ for i in "${!REPOS[@]}"; do
     fi
 
     # Check if README already references the logo (same patterns as audit)
-    if grep -qiE '!\[.*\]\(\.?/?((assets|images|\.github)/)?logo\.' "$dir/README.md" 2>/dev/null; then
-        success "$repo_name (logo referenced)"
-        ((in_sync++))
-        continue
-    fi
-    if grep -qiE '<img[^>]+src=.\.?/?((assets|images|\.github)/)?logo\.' "$dir/README.md" 2>/dev/null; then
+    if grep -qiE '!\[.*\]\(\.?/?((assets|images|\.github)/)?logo\.' "$dir/README.md" 2>/dev/null || \
+       grep -qiE '<img[^>]+src=.\.?/?((assets|images|\.github)/)?logo\.' "$dir/README.md" 2>/dev/null; then
         success "$repo_name (logo referenced)"
         ((in_sync++))
         continue

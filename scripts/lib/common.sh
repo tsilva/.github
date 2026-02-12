@@ -130,3 +130,39 @@ require_command() {
         exit 1
     fi
 }
+
+# --- Shared constants ---
+
+LOGO_LOCATIONS=(
+    "logo.png" "logo.svg" "logo.jpg"
+    "assets/logo.png" "assets/logo.svg"
+    "images/logo.png" "images/logo.svg"
+    ".github/logo.png" ".github/logo.svg"
+)
+
+# --- Shared check helpers ---
+
+has_license_file() {
+    for n in LICENSE LICENSE.md LICENSE.txt; do
+        [[ -f "$1/$n" ]] && return 0
+    done
+    return 1
+}
+
+readme_has_license_ref() {
+    tr '[:upper:]' '[:lower:]' < "$1" | grep -qE '## license|# license|mit license|\[mit\]'
+}
+
+has_sandbox_enabled() {
+    local dir="$1"
+    for settings_file in "$dir/.claude/settings.json" "$dir/.claude/settings.local.json"; do
+        [[ -f "$settings_file" ]] && python3 -c "
+import json, sys
+try:
+    data = json.load(open('$settings_file'))
+    sys.exit(0 if isinstance(data.get('sandbox'), dict) and data['sandbox'].get('enabled') is True else 1)
+except: sys.exit(1)
+" 2>/dev/null && return 0
+    done
+    return 1
+}

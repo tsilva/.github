@@ -146,10 +146,7 @@ check_readme_has_license() {
     local readme="$1/README.md"
     [[ ! -f "$readme" ]] && { echo "FAIL	README.md does not exist"; return; }
 
-    local content_lower
-    content_lower=$(tr '[:upper:]' '[:lower:]' < "$readme")
-
-    if echo "$content_lower" | grep -qE '## license|# license|mit license|\[mit\]'; then
+    if readme_has_license_ref "$readme"; then
         echo "PASS"
     else
         echo "FAIL	README missing license reference"
@@ -158,7 +155,7 @@ check_readme_has_license() {
 
 check_logo_exists() {
     local dir="$1"
-    for pattern in logo.png logo.svg logo.jpg assets/logo.png assets/logo.svg images/logo.png images/logo.svg .github/logo.png .github/logo.svg; do
+    for pattern in "${LOGO_LOCATIONS[@]}"; do
         if [[ -f "$dir/$pattern" ]]; then
             echo "PASS"
             return
@@ -169,9 +166,7 @@ check_logo_exists() {
 
 check_license_exists() {
     local dir="$1"
-    for name in LICENSE LICENSE.md LICENSE.txt; do
-        [[ -f "$dir/$name" ]] && { echo "PASS"; return; }
-    done
+    has_license_file "$dir" && { echo "PASS"; return; }
     echo "FAIL	No LICENSE file found"
 }
 
@@ -208,23 +203,11 @@ check_claude_md_exists() {
 
 check_claude_sandbox() {
     local dir="$1"
-    local claude_dir="$dir/.claude"
-
-    for settings_file in "$claude_dir/settings.json" "$claude_dir/settings.local.json"; do
-        if [[ -f "$settings_file" ]]; then
-            if python3 -c "
-import json, sys
-try:
-    data = json.load(open('$settings_file'))
-    sys.exit(0 if isinstance(data.get('sandbox'), dict) and data['sandbox'].get('enabled') is True else 1)
-except: sys.exit(1)
-" 2>/dev/null; then
-                echo "PASS"
-                return
-            fi
-        fi
-    done
-    echo "FAIL	Sandbox not enabled"
+    if has_sandbox_enabled "$dir"; then
+        echo "PASS"
+    else
+        echo "FAIL	Sandbox not enabled"
+    fi
 }
 
 check_dependabot_exists() {
@@ -334,12 +317,8 @@ check_readme_logo() {
     local dir="$1"
     local readme="$dir/README.md"
     [[ ! -f "$readme" ]] && { echo "FAIL	README.md does not exist"; return; }
-    # Markdown image: ![...](logo. or ![...](assets/logo. etc.
-    if grep -qiE '!\[.*\]\(\.?/?((assets|images|\.github)/)?logo\.' "$readme" 2>/dev/null; then
-        echo "PASS"; return
-    fi
-    # HTML img: <img...src="logo. etc.
-    if grep -qiE '<img[^>]+src=.\.?/?((assets|images|\.github)/)?logo\.' "$readme" 2>/dev/null; then
+    if grep -qiE '!\[.*\]\(\.?/?((assets|images|\.github)/)?logo\.' "$readme" 2>/dev/null || \
+       grep -qiE '<img[^>]+src=.\.?/?((assets|images|\.github)/)?logo\.' "$readme" 2>/dev/null; then
         echo "PASS"; return
     fi
     echo "FAIL	README does not reference logo"

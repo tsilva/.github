@@ -32,28 +32,6 @@ EOF
 
 parse_args "$@"
 
-# Check if sandbox is already enabled in a repo
-has_sandbox_enabled() {
-    local dir="$1"
-    local claude_dir="$dir/.claude"
-
-    for settings_file in "$claude_dir/settings.json" "$claude_dir/settings.local.json"; do
-        if [[ -f "$settings_file" ]]; then
-            # Check for "enabled": true inside sandbox block
-            if python3 -c "
-import json, sys
-try:
-    data = json.load(open('$settings_file'))
-    sys.exit(0 if isinstance(data.get('sandbox'), dict) and data['sandbox'].get('enabled') is True else 1)
-except: sys.exit(1)
-" 2>/dev/null; then
-                return 0
-            fi
-        fi
-    done
-    return 1
-}
-
 # Counters
 created=0
 in_sync=0
