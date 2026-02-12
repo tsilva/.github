@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Ensures .pre-commit-config.yaml has gitleaks hook in all repos
 # Usage: ./scripts/sync-precommit.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

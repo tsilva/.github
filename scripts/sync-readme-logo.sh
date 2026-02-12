@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Ensures README.md references the project logo (inserts img tag after title if missing)
 # Usage: ./scripts/sync-readme-logo.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

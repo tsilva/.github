@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tsilva-maintain"
+version = "0.1.0"
+description = "Compliance audit and maintenance CLI for the tsilva GitHub organization"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Tiago Silva" }]
+
+[project.scripts]
+tsilva-maintain = "tsilva_maintain.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tsilva_maintain"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

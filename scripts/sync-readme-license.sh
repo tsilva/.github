@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Ensures README.md has a license section (appends ## License / MIT if missing)
 # Usage: ./scripts/sync-readme-license.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

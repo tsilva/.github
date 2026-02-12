@@ -1,18 +1,24 @@
 ---
 name: maintain-repos
 description: Audit and remediate repos for tsilva org standardization. Run from repos parent directory.
-argument-hint: "[audit|fix|status] [--filter PATTERN] <repos-dir>"
+argument-hint: "[audit|fix|maintain|commit|report] [--filter PATTERN] <repos-dir>"
 ---
 
 # Maintain Repos
 
-Orchestrates repo compliance auditing and remediation for the tsilva organization.
+Orchestrates repo compliance auditing and remediation for the tsilva organization using the `tsilva-maintain` Python CLI.
 
 ## Prerequisites
 
-**Required tools:** git, gh CLI, python3
+**Required tools:** git, gh CLI, python3, tsilva-maintain
 
-**Required skills (for fix operation):**
+Install the CLI from the `.github` repo:
+
+```bash
+uv tool install tsilva-maintain --from /path/to/.github
+```
+
+**Required skills (for AI-dependent fixes):**
 - `project-readme-author` — README creation/optimization
 - `project-logo-author` — logo generation
 - `mcp__image-tools__get_image_metadata` — logo verification
@@ -21,27 +27,24 @@ Orchestrates repo compliance auditing and remediation for the tsilva organizatio
 
 | Operation | Triggers | Purpose |
 |-----------|----------|---------|
-| `audit` | "audit", "check", "scan", default | Run all checks, show report |
-| `fix` | "fix", "remediate", "repair" | Apply fixes for failures |
-| `status` | "status", "progress" | Show existing audit results |
+| `audit` | "audit", "check", "scan", default | Run all 25 checks, show report |
+| `fix` | "fix", "remediate", "repair" | Apply auto-fixes for failures |
+| `maintain` | "maintain", "full" | Audit -> fix -> verify cycle |
+| `commit` | "commit", "push" | AI-assisted commit & push for dirty repos |
+| `report` | "report", "taglines" | Generate reports |
 
 ### Operation Detection
 
-1. Check arguments for explicit keyword (audit/fix/status)
+1. Check arguments for explicit keyword
 2. If no keyword: default to `audit`
 
 ## Audit
 
-Run the audit script from the `.github` repository:
-
 ```bash
-{SKILL_DIR}/../../scripts/audit-repos.sh <repos-dir>
-```
-
-Or for machine-readable output:
-
-```bash
-{SKILL_DIR}/../../scripts/audit-repos.sh --json <repos-dir>
+tsilva-maintain audit <repos-dir>
+tsilva-maintain audit --json <repos-dir>
+tsilva-maintain audit --filter my-project <repos-dir>
+tsilva-maintain audit --rule README_EXISTS <repos-dir>
 ```
 
 ### Checks (25 per repo)
@@ -76,23 +79,19 @@ Or for machine-readable output:
 
 ## Fix
 
-### Step 1: Apply Safe Fixes (automatic, no AI needed)
-
-Run the meta-script that executes all sync scripts in sequence:
+### Step 1: Apply Auto-Fixes
 
 ```bash
-SCRIPTS="{SKILL_DIR}/../../scripts"
-REPOS_DIR="<repos-dir>"
-
-"$SCRIPTS/sync-all.sh" "$REPOS_DIR"
+tsilva-maintain fix <repos-dir>
+tsilva-maintain fix --dry-run <repos-dir>
 ```
 
-Each sub-script only creates files that are missing — existing files are never overwritten.
+Auto-fixes cover 11 rules: LICENSE, CLAUDE.md, sandbox, dependabot, gitignore, pre-commit, README license/logo sections, settings cleanup, repo descriptions.
 
 ### Step 2: Re-audit to Find Remaining Failures
 
 ```bash
-"$SCRIPTS/audit-repos.sh" --json "$REPOS_DIR"
+tsilva-maintain audit --json <repos-dir>
 ```
 
 ### Step 3: Fix Remaining Issues (AI-dependent)
@@ -108,38 +107,50 @@ Process remaining failures per repo. For each repo with failures:
    - Verify the result: must be at `logo.png` in repo root, transparent background, includes project name as text
    - Check with `mcp__image-tools__get_image_metadata` and visual inspection
    - If verification fails, regenerate with specific corrections
-4. For **GITIGNORE_COMPLETE**: append missing patterns to .gitignore
-5. For **TRACKED_IGNORED**: list the files and suggest `git rm --cached` commands
-6. For **PYTHON_PYPROJECT**: generate a minimal pyproject.toml
-7. For **SETTINGS_DANGEROUS**: list the dangerous patterns and require human review — do NOT auto-remove
-8. For **DEFAULT_BRANCH**: suggest `git branch -m master main` + `gh repo edit --default-branch main` — do NOT auto-rename
-9. For **PENDING_COMMITS**: list the uncommitted changes and unpushed commits, suggest user review and commit/push — do NOT auto-commit
-10. For **STALE_BRANCHES**: list branches, suggest `git branch -d <branch>` for merged branches — do NOT auto-delete
+4. For **TRACKED_IGNORED**: list the files and suggest `git rm --cached` commands
+5. For **PYTHON_PYPROJECT**: generate a minimal pyproject.toml
+6. For **SETTINGS_DANGEROUS**: list the dangerous patterns and require human review — do NOT auto-remove
+7. For **DEFAULT_BRANCH**: suggest `git branch -m master main` + `gh repo edit --default-branch main` — do NOT auto-rename
+8. For **PENDING_COMMITS**: list the uncommitted changes and unpushed commits, suggest user review and commit/push — do NOT auto-commit
+9. For **STALE_BRANCHES**: list branches, suggest `git branch -d <branch>` for merged branches — do NOT auto-delete
 
 ### Step 4: Final Audit
 
-Run audit again to confirm all fixes applied:
-
 ```bash
-"$SCRIPTS/audit-repos.sh" "$REPOS_DIR"
+tsilva-maintain audit <repos-dir>
 ```
 
-## Status
+## Maintain (One-Command Flow)
 
-Display the results of the most recent audit:
+Full audit -> fix -> verify cycle:
 
 ```bash
-"$SCRIPTS/audit-repos.sh" "$REPOS_DIR"
+tsilva-maintain maintain <repos-dir>
+tsilva-maintain maintain --dry-run <repos-dir>
 ```
 
-Show pass rate, failed checks grouped by type, and list of fully-compliant repos.
+## Commit
+
+AI-assisted commit & push for repos with uncommitted changes:
+
+```bash
+tsilva-maintain commit <repos-dir>
+tsilva-maintain commit --dry-run <repos-dir>
+```
+
+## Report
+
+```bash
+tsilva-maintain report taglines <repos-dir>
+tsilva-maintain report tracked-ignored <repos-dir>
+```
 
 ## Filter
 
 All operations support `--filter PATTERN` to limit to repos matching a name pattern:
 
 ```bash
-"$SCRIPTS/audit-repos.sh" --filter my-project "$REPOS_DIR"
+tsilva-maintain audit --filter my-project <repos-dir>
 ```
 
 ## Usage Examples
@@ -148,5 +159,7 @@ All operations support `--filter PATTERN` to limit to repos matching a name patt
 /maintain-repos audit ~/repos/tsilva
 /maintain-repos fix ~/repos/tsilva
 /maintain-repos fix --filter my-project ~/repos/tsilva
-/maintain-repos status ~/repos/tsilva
+/maintain-repos maintain ~/repos/tsilva
+/maintain-repos commit ~/repos/tsilva
+/maintain-repos report taglines ~/repos/tsilva
 ```

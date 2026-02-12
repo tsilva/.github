@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Syncs repo description to GitHub from README.md tagline or pyproject.toml
 # Priority: README.md tagline → pyproject.toml description
 # Usage: ./scripts/sync-repo-descriptions.sh [--dry-run] [--filter PATTERN] <repos-dir>

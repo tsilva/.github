@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Syncs global gitignore rules to all repos from gitignore.global template
 # Usage: ./scripts/sync-gitignore.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

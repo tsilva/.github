@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Ensures .github/dependabot.yml exists in all repos
 # Usage: ./scripts/sync-dependabot.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Optimizes Claude Code settings across all repos (removes redundant permissions, migrates WebFetch domains)
 # Usage: ./scripts/sync-settings.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

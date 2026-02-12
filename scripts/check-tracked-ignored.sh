@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain report tracked-ignored' instead
 # Warns about files that are tracked in git but match gitignore patterns
 # Usage: ./scripts/check-tracked-ignored.sh [--filter PATTERN] <repos-dir>
 

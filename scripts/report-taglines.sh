@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain report taglines' instead
 # Generates a tabular report of repo names and their README.md taglines
 # Usage: ./scripts/report-taglines.sh [--filter PATTERN] <repos-dir>
 

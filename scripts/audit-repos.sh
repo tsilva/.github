@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain audit' instead
 # Comprehensive repo compliance audit
 # Usage: ./scripts/audit-repos.sh [--dry-run] [--filter PATTERN] [--json] <repos-dir>
 

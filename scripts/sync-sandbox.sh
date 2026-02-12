@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Ensures Claude sandbox is enabled in all repos
 # Usage: ./scripts/sync-sandbox.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

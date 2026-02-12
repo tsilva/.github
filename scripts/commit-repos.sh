@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain commit' instead
 # Interactive AI-assisted commit & push for repos with uncommitted changes
 # Usage: ./scripts/commit-repos.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

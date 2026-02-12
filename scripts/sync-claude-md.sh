@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Ensures CLAUDE.md exists in all repos
 # Usage: ./scripts/sync-claude-md.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

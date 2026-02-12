@@ -10,20 +10,24 @@ Shared GitHub Actions reusable workflows and org-wide maintenance tooling for th
 
 Modular reusable workflows triggered via `workflow_call`. Each workflow handles a single concern and can be called independently. A composed `release.yml` chains them together for the common release flow.
 
-### Scripts
+### Python CLI (`tsilva-maintain`)
 
-Scripts in `scripts/` operate on a directory of repos. They share common infrastructure:
+The primary maintenance tool. A Python package in `src/tsilva_maintain/` installable via `uv tool install` or `uv pip install -e .`. Each compliance rule is a self-contained class in `src/tsilva_maintain/rules/` with `check()` and `fix()` methods, auto-discovered via `pkgutil`.
+
+Commands: `tsilva-maintain audit|fix|maintain|commit|report`
+
+### Scripts (legacy)
+
+Bash scripts in `scripts/` are the original implementation, kept during transition. The Python CLI (`tsilva-maintain`) replaces them. Scripts share common infrastructure:
 
 - `scripts/lib/style.sh` — terminal styling (colors, log functions, NO_COLOR support)
 - `scripts/lib/common.sh` — argument parsing (`--dry-run`, `--filter`, `<repos-dir>`), repo discovery, GitHub remote extraction
-
-All scripts follow the pattern: `./scripts/<name>.sh [--dry-run] [--filter PATTERN] <repos-dir>`
 
 ### Skills
 
 Skills in `.claude/skills/` provide AI-dependent maintenance operations:
 
-- `maintain-repos` — orchestrator: audit → sync scripts → AI fixes
+- `maintain-repos` — orchestrator: uses `tsilva-maintain` CLI for audit/fix, delegates to AI skills for remaining issues
 
 ## Workflows
 
@@ -102,7 +106,66 @@ Set `publish_to_pypi: false` for non-Python repos:
     secrets: inherit
 ```
 
-## Scripts
+## Python CLI (`tsilva-maintain`)
+
+### Installation
+
+```bash
+uv pip install -e .           # development
+uv tool install tsilva-maintain  # global CLI
+```
+
+### Commands
+
+```
+tsilva-maintain audit <repos-dir> [--filter PAT] [--json] [--rule ID] [--category CAT]
+tsilva-maintain fix <repos-dir> [--filter PAT] [--dry-run] [--rule ID]
+tsilva-maintain maintain <repos-dir> [--filter PAT] [--dry-run]
+tsilva-maintain commit <repos-dir> [--filter PAT] [--dry-run]
+tsilva-maintain report taglines|tracked-ignored <repos-dir> [--filter PAT]
+```
+
+### Package Structure
+
+- `src/tsilva_maintain/cli.py` — argparse entry point
+- `src/tsilva_maintain/engine.py` — RuleRunner: discover → check → fix → report
+- `src/tsilva_maintain/repo.py` — Repo dataclass with lazy-cached properties
+- `src/tsilva_maintain/rules/` — one file per compliance rule (25 total), auto-discovered via `pkgutil`
+- `src/tsilva_maintain/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
+- `src/tsilva_maintain/rules/_registry.py` — auto-discovery + canonical ordering
+- `src/tsilva_maintain/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
+- `src/tsilva_maintain/tagline.py` — README tagline extractor (from `scripts/lib/extract_tagline.py`)
+- `src/tsilva_maintain/templates/` — LICENSE, CLAUDE.md, dependabot.yml, pre-commit-config.yaml
+
+### Adding a New Rule
+
+Create `src/tsilva_maintain/rules/my_rule.py`:
+
+```python
+from tsilva_maintain.rules import Category, CheckResult, Rule, Status
+
+class MyRule(Rule):
+    id = "MY_RULE"
+    name = "Description of the rule"
+    category = Category.REPO_STRUCTURE
+
+    def check(self, repo):
+        if condition:
+            return CheckResult(Status.PASS)
+        return CheckResult(Status.FAIL, "Failure message")
+```
+
+The rule is auto-discovered. Add its ID to `_CANONICAL_ORDER` in `rules/_registry.py` if ordering matters.
+
+### Tests
+
+```bash
+pytest tests/
+```
+
+## Scripts (legacy, deprecated)
+
+> **Use `tsilva-maintain` instead.** These scripts are kept during transition.
 
 ### Audit
 
@@ -124,7 +187,7 @@ Set `publish_to_pypi: false` for non-Python repos:
 
 ### Git Operations
 
-- `commit-repos.sh` — interactive AI-assisted commit & push for dirty repos (Claude CLI generates messages, graceful fallback to manual entry)
+- `commit-repos.sh` — interactive AI-assisted commit & push for dirty repos
 
 ### Reports
 
@@ -134,15 +197,6 @@ Set `publish_to_pypi: false` for non-Python repos:
 ### Utilities
 
 - `set-secret-all-repos.sh` — set GitHub secret across all repos
-
-### Templates
-
-Templates used by sync scripts:
-
-- `scripts/templates/LICENSE` — MIT license (`[year]`/`[fullname]` placeholders)
-- `scripts/templates/CLAUDE.md` — minimal CLAUDE.md (`[project-name]` placeholder)
-- `scripts/templates/dependabot.yml` — base dependabot config
-- `scripts/templates/pre-commit-config.yaml` — pre-commit config with gitleaks hook
 
 ## Pre-commit Hook
 

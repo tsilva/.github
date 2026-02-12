@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use 'tsilva-maintain fix' instead
 # Ensures LICENSE file exists in all repos (MIT template)
 # Usage: ./scripts/sync-license.sh [--dry-run] [--filter PATTERN] <repos-dir>
 

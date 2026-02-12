@@ -5,7 +5,7 @@
 
   Shared reusable GitHub Actions workflows and org-wide maintenance tooling for the `tsilva` organization
 
-  [Workflows](#-workflows) · [Scripts](#-scripts) · [Skills](#-skills) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
+  [Workflows](#-workflows) · [CLI](#-cli-tsilva-maintain) · [Scripts](#-scripts-legacy) · [Usage](#-usage) · [Pre-commit Hook](#-pre-commit-hook)
 </div>
 
 ## Features
@@ -16,7 +16,7 @@
 - Secret scanning — detect credentials and secrets using [gitleaks](https://github.com/gitleaks/gitleaks)
 - Pre-commit hook — run gitleaks locally before pushing
 - Testing — pytest via reusable workflow
-- Repo compliance — audit and enforce org standards across all repos
+- Repo compliance — audit and enforce org standards across all repos via Python CLI
 - One-line integration — `uses: tsilva/.github/...@main` and `secrets: inherit`
 
 ## Workflows
@@ -49,94 +49,103 @@ Scans repository for credentials and secrets using [gitleaks-action v2](https://
 
 Caller repos can customize detection rules via a `.gitleaks.toml` config file.
 
-## Scripts
+## CLI (`tsilva-maintain`)
 
-All scripts operate on a directory of git repos. Run from the `.github` repo directory, using `..` as the repos directory.
+A Python CLI that replaces the legacy bash scripts. Each compliance rule is a self-contained class with `check()` and `fix()` methods, auto-discovered at runtime.
 
-Common options: `--dry-run` (preview without changes), `--filter PATTERN` (substring match on repo name), `--help`.
-
-### Audit
-
-#### `audit-repos.sh`
-
-Comprehensive compliance audit — 25 checks per repo covering README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings, dependabot, pre-commit gitleaks hook, tracked-ignored files, Python config (pyproject.toml, min version), CI/release workflows, PII scanning, repo description, and Claude settings optimization.
+### Installation
 
 ```bash
-./scripts/audit-repos.sh ..
-./scripts/audit-repos.sh --json ..         # Machine-readable output
-./scripts/audit-repos.sh --filter myrepo ..
+uv pip install -e .           # development
+uv tool install tsilva-maintain  # global CLI
 ```
 
-### Sync
-
-Idempotent scripts that ensure standard files exist. Only create missing files — never overwrite existing ones.
-
-| Script | Purpose |
-|--------|---------|
-| `sync-gitignore.sh` | Append missing rules from `gitignore.global` |
-| `sync-license.sh` | Create MIT LICENSE from template |
-| `sync-claude-md.sh` | Create minimal CLAUDE.md from template |
-| `sync-sandbox.sh` | Enable Claude sandbox in `.claude/settings.json` |
-| `sync-settings.sh` | Remove redundant permissions, migrate WebFetch domains to sandbox |
-| `sync-dependabot.sh` | Create `dependabot.yml` with auto-detected ecosystems |
-| `sync-precommit.sh` | Create/append gitleaks pre-commit hook config |
-| `sync-readme-license.sh` | Append license section to README if missing |
-| `sync-readme-logo.sh` | Insert logo reference in README if missing |
-| `sync-repo-descriptions.sh` | Sync GitHub descriptions from README tagline |
-| `sync-all.sh` | Run all sync scripts in sequence (`--online` for network ops) |
+### Commands
 
 ```bash
-# Dry run any sync script
-./scripts/sync-license.sh --dry-run ..
-./scripts/sync-dependabot.sh --dry-run ..
+# Audit — run all 25 compliance checks
+tsilva-maintain audit ~/repos/tsilva
+tsilva-maintain audit --json ~/repos/tsilva
+tsilva-maintain audit --filter myrepo ~/repos/tsilva
+tsilva-maintain audit --rule README_EXISTS ~/repos/tsilva
+
+# Fix — auto-fix failing checks (11 rules have auto-fixes)
+tsilva-maintain fix ~/repos/tsilva
+tsilva-maintain fix --dry-run ~/repos/tsilva
+
+# Maintain — full audit → fix → verify cycle
+tsilva-maintain maintain ~/repos/tsilva
+
+# Commit — AI-assisted commit & push for dirty repos
+tsilva-maintain commit ~/repos/tsilva
+
+# Report — generate reports
+tsilva-maintain report taglines ~/repos/tsilva
+tsilva-maintain report tracked-ignored ~/repos/tsilva
 ```
 
-### Git Operations
+### Adding a New Rule
 
-| Script | Purpose |
-|--------|---------|
-| `commit-repos.sh` | Interactive AI-assisted commit & push for dirty repos |
+Create one Python file in `src/tsilva_maintain/rules/`:
 
-### Reports
+```python
+from tsilva_maintain.rules import Category, CheckResult, Rule, Status
 
-| Script | Purpose |
-|--------|---------|
-| `report-taglines.sh` | Tabular report of repo names and README taglines |
-| `check-tracked-ignored.sh` | Find tracked files that match gitignore patterns |
+class MyRule(Rule):
+    id = "MY_RULE"
+    name = "Description of the rule"
+    category = Category.REPO_STRUCTURE
 
-### Utilities
-
-| Script | Purpose |
-|--------|---------|
-| `set-secret-all-repos.sh` | Set a GitHub secret across all repos |
-
-```bash
-./scripts/set-secret-all-repos.sh .. MY_SECRET "value"
+    def check(self, repo):
+        if (repo.path / "expected_file").is_file():
+            return CheckResult(Status.PASS)
+        return CheckResult(Status.FAIL, "expected_file not found")
 ```
 
-### Shared Libraries
+The rule is auto-discovered — no registration needed.
 
-Scripts share common infrastructure via `scripts/lib/`:
+### Compliance Checks (25)
 
-- `style.sh` — terminal colors, log functions (`success`, `error`, `warn`, `info`, `step`, `skip`), `NO_COLOR` support
-- `common.sh` — `parse_args()`, `discover_repos()`, `extract_github_remote()`, `require_gh_auth()`
+| Check | What it detects |
+|-------|----------------|
+| `DEFAULT_BRANCH` | Repo has a "main" branch |
+| `README_EXISTS` | README.md file exists |
+| `README_CURRENT` | No placeholders, adequate length, has install/usage |
+| `README_LICENSE` | README mentions license |
+| `README_LOGO` | README references the project logo |
+| `LOGO_EXISTS` | Logo in standard locations |
+| `LICENSE_EXISTS` | LICENSE/LICENSE.md/LICENSE.txt exists |
+| `GITIGNORE_EXISTS` | .gitignore exists |
+| `GITIGNORE_COMPLETE` | Essential patterns present |
+| `CLAUDE_MD_EXISTS` | CLAUDE.md exists |
+| `CLAUDE_SANDBOX` | Sandbox enabled in .claude/settings*.json |
+| `DEPENDABOT_EXISTS` | .github/dependabot.yml exists |
+| `PRECOMMIT_GITLEAKS` | .pre-commit-config.yaml has gitleaks hook |
+| `TRACKED_IGNORED` | No tracked files matching gitignore |
+| `PENDING_COMMITS` | No uncommitted changes or unpushed commits |
+| `STALE_BRANCHES` | No merged or inactive (>90d) branches |
+| `PYTHON_PYPROJECT` | pyproject.toml exists (Python projects only) |
+| `PYTHON_MIN_VERSION` | requires-python field in pyproject.toml |
+| `SETTINGS_DANGEROUS` | No dangerous permission patterns |
+| `SETTINGS_CLEAN` | No redundant permissions or unmigrated WebFetch domains |
+| `README_CI_BADGE` | README has CI status badge |
+| `CI_WORKFLOW` | Python repos reference test.yml/release.yml/pytest |
+| `RELEASE_WORKFLOW` | Versioned projects reference release.yml |
+| `PII_SCAN` | CI workflows include PII scanning |
+| `REPO_DESCRIPTION` | GitHub description matches README tagline |
 
-### Templates
+## Scripts (legacy)
 
-Templates used by sync scripts live in `scripts/templates/`:
+> **Deprecated** — use `tsilva-maintain` instead. Scripts are kept during transition.
 
-- `LICENSE` — MIT license with `[year]`/`[fullname]` placeholders
-- `CLAUDE.md` — minimal CLAUDE.md with `[project-name]` placeholder
-- `dependabot.yml` — base dependabot config
-- `pre-commit-config.yaml` — pre-commit config with gitleaks hook
-
-## Skills
-
-Claude Code skills for AI-dependent maintenance operations (in `.claude/skills/`):
-
-| Skill | Purpose |
-|-------|---------|
-| `maintain-repos` | Orchestrator: audit → sync scripts → AI fixes |
+| Script | Replacement |
+|--------|-------------|
+| `audit-repos.sh` | `tsilva-maintain audit` |
+| `sync-*.sh` | `tsilva-maintain fix` |
+| `commit-repos.sh` | `tsilva-maintain commit` |
+| `report-taglines.sh` | `tsilva-maintain report taglines` |
+| `check-tracked-ignored.sh` | `tsilva-maintain report tracked-ignored` |
+| `set-secret-all-repos.sh` | *(no replacement, still active)* |
 
 ## Usage
 
@@ -208,10 +217,10 @@ Caller repos need:
 - `pyproject.toml` with `version` field (for release workflows)
 - `pypi` environment configured (for PyPI publishing with trusted publishing)
 
-Scripts require:
-- [GitHub CLI](https://cli.github.com/) (`gh`) — installed and authenticated
-- Python 3.11+ — for tagline extraction and settings manipulation
-- bash 4+ — for associative arrays and modern shell features
+CLI requires:
+- Python 3.11+ — zero external dependencies (stdlib only)
+- [GitHub CLI](https://cli.github.com/) (`gh`) — for repo description sync
+- git — for repository operations
 
 ## License
 
