@@ -31,7 +31,7 @@ def has_branch(repo_path: Path, branch: str) -> bool:
 
 
 def tracked_ignored_files(repo_path: Path) -> list[str]:
-    r = run_git(repo_path, "ls-files", "-i", "--exclude-standard")
+    r = run_git(repo_path, "ls-files", "-i", "-c", "--exclude-standard")
     if r.returncode != 0 or not r.stdout.strip():
         return []
     return r.stdout.strip().splitlines()

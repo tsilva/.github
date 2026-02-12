@@ -14,8 +14,8 @@ def test_all_rules_discovered():
     rule_ids = {r.id for r in rules}
     expected = {
         "DEFAULT_BRANCH", "README_EXISTS", "README_CURRENT", "README_LICENSE",
-        "README_LOGO", "LOGO_EXISTS", "LICENSE_EXISTS", "GITIGNORE_EXISTS",
-        "GITIGNORE_COMPLETE", "CLAUDE_MD_EXISTS", "CLAUDE_SANDBOX",
+        "README_LOGO", "LOGO_EXISTS", "LICENSE_EXISTS", "GITIGNORE",
+        "CLAUDE_MD_EXISTS", "CLAUDE_SANDBOX",
         "DEPENDABOT_EXISTS", "PRECOMMIT_GITLEAKS", "TRACKED_IGNORED",
         "PENDING_COMMITS", "STALE_BRANCHES", "PYTHON_PYPROJECT",
         "PYTHON_MIN_VERSION", "SETTINGS_DANGEROUS", "SETTINGS_CLEAN",
@@ -51,8 +51,7 @@ def test_all_pass_on_complete_repo(tmp_repo):
     assert "README_CURRENT" in passing_ids
     assert "README_LICENSE" in passing_ids
     assert "LICENSE_EXISTS" in passing_ids
-    assert "GITIGNORE_EXISTS" in passing_ids
-    assert "GITIGNORE_COMPLETE" in passing_ids
+    assert "GITIGNORE" in passing_ids
     assert "CLAUDE_MD_EXISTS" in passing_ids
     assert "CLAUDE_SANDBOX" in passing_ids
     assert "DEPENDABOT_EXISTS" in passing_ids
@@ -113,17 +112,32 @@ def test_claude_md_fix(bare_repo):
     assert "bare-repo" in content
 
 
-def test_gitignore_complete_fix(tmp_repo):
+def test_gitignore_fix_incomplete(tmp_repo):
     # Remove some patterns
     (tmp_repo / ".gitignore").write_text("*.pyc\n")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.gitignore import GitignoreCompleteRule
-    rule = GitignoreCompleteRule()
+    from tsilva_maintain.rules.gitignore import GitignoreRule
+    rule = GitignoreRule()
     result = rule.check(repo)
     assert result.status == Status.FAIL
 
     outcome = rule.fix(repo)
     assert outcome.status == "fixed"
+
+
+def test_gitignore_fix_missing(bare_repo):
+    repo = Repo(path=bare_repo)
+    from tsilva_maintain.rules.gitignore import GitignoreRule
+    rule = GitignoreRule()
+    result = rule.check(repo)
+    assert result.status == Status.FAIL
+    assert "not found" in result.message
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+    assert (bare_repo / ".gitignore").is_file()
+    content = (bare_repo / ".gitignore").read_text()
+    assert ".env" in content
 
 
 def test_sandbox_fix(bare_repo):
@@ -198,6 +212,29 @@ def test_python_pyproject_pass(tmp_repo):
     repo = Repo(path=tmp_repo)
     from tsilva_maintain.rules.python import PythonPyprojectRule
     result = PythonPyprojectRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_tracked_ignored_fix(tmp_repo):
+    # Create and commit a .env file (which is in .gitignore)
+    (tmp_repo / ".env").write_text("SECRET=abc")
+    subprocess.run(["git", "-C", str(tmp_repo), "add", "-f", ".env"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(tmp_repo), "commit", "-m", "add env"], capture_output=True, check=True)
+
+    repo = Repo(path=tmp_repo)
+    from tsilva_maintain.rules.tracked_ignored import TrackedIgnoredRule
+    rule = TrackedIgnoredRule()
+    result = rule.check(repo)
+    assert result.status == Status.FAIL
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    # File should still exist on disk
+    assert (tmp_repo / ".env").is_file()
+
+    # But should no longer be tracked
+    result = rule.check(repo)
     assert result.status == Status.PASS
 
 

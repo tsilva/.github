@@ -31,46 +31,17 @@ def _load_gitignore_global() -> list[str]:
     return []
 
 
-class GitignoreExistsRule(Rule):
-    id = "GITIGNORE_EXISTS"
-    name = ".gitignore must exist"
+class GitignoreRule(Rule):
+    id = "GITIGNORE"
+    name = ".gitignore must exist with essential patterns"
     category = Category.REPO_STRUCTURE
     rule_number = "1.9"
     fix_type = FixType.AUTO
 
     def check(self, repo):
-        if (repo.path / ".gitignore").is_file():
-            return CheckResult(Status.PASS)
-        return CheckResult(Status.FAIL, ".gitignore not found")
-
-    def fix(self, repo, *, dry_run=False):
-        gitignore = repo.path / ".gitignore"
-        if gitignore.is_file():
-            return FixOutcome(FixOutcome.ALREADY_OK)
-
-        if dry_run:
-            return FixOutcome(FixOutcome.FIXED, "Would create .gitignore with essential patterns")
-
-        try:
-            content = "# Managed by tsilva/.github\n# Do not remove - synced automatically\n"
-            content += "\n".join(ESSENTIAL_GITIGNORE) + "\n"
-            gitignore.write_text(content, encoding="utf-8")
-            return FixOutcome(FixOutcome.FIXED, f"Created .gitignore ({len(ESSENTIAL_GITIGNORE)} patterns)")
-        except Exception as e:
-            return FixOutcome(FixOutcome.FAILED, str(e))
-
-
-class GitignoreCompleteRule(Rule):
-    id = "GITIGNORE_COMPLETE"
-    name = ".gitignore must include essential patterns"
-    category = Category.REPO_STRUCTURE
-    rule_number = "1.10"
-    fix_type = FixType.AUTO
-
-    def check(self, repo):
         gitignore = repo.path / ".gitignore"
         if not gitignore.is_file():
-            return CheckResult(Status.FAIL, ".gitignore does not exist")
+            return CheckResult(Status.FAIL, ".gitignore not found")
 
         content_lower = gitignore.read_text(encoding="utf-8", errors="replace").lower()
         missing = []
@@ -85,11 +56,18 @@ class GitignoreCompleteRule(Rule):
 
     def fix(self, repo, *, dry_run=False):
         gitignore = repo.path / ".gitignore"
-
         all_rules = _load_gitignore_global() or ESSENTIAL_GITIGNORE
 
         if not gitignore.is_file():
-            return FixOutcome(FixOutcome.SKIPPED, ".gitignore does not exist")
+            if dry_run:
+                return FixOutcome(FixOutcome.FIXED, "Would create .gitignore with essential patterns")
+            try:
+                content = "# Managed by tsilva/.github\n# Do not remove - synced automatically\n"
+                content += "\n".join(all_rules) + "\n"
+                gitignore.write_text(content, encoding="utf-8")
+                return FixOutcome(FixOutcome.FIXED, f"Created .gitignore ({len(all_rules)} patterns)")
+            except Exception as e:
+                return FixOutcome(FixOutcome.FAILED, str(e))
 
         content = gitignore.read_text(encoding="utf-8", errors="replace")
         missing = []

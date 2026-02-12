@@ -42,6 +42,12 @@ class Repo:
         return self._cache["has_workflows"]
 
     @property
+    def has_ci_workflow(self) -> bool:
+        if "has_ci_workflow" not in self._cache:
+            self._cache["has_ci_workflow"] = self._detect_ci_workflow()
+        return self._cache["has_ci_workflow"]
+
+    @property
     def has_pyproject(self) -> bool:
         return (self.path / "pyproject.toml").is_file()
 
@@ -51,6 +57,21 @@ class Repo:
         if "has_version" not in self._cache:
             self._cache["has_version"] = self._check_pyproject_field("version")
         return self._cache["has_version"]
+
+    def _detect_ci_workflow(self) -> bool:
+        wf_dir = self.path / ".github" / "workflows"
+        if not wf_dir.is_dir():
+            return False
+        for wf_file in wf_dir.iterdir():
+            if wf_file.suffix not in (".yml", ".yaml"):
+                continue
+            try:
+                content = wf_file.read_text(encoding="utf-8", errors="replace")
+                if re.search(r"tsilva/\.github/.*/(test|release|ci)\.yml|pytest", content):
+                    return True
+            except Exception:
+                continue
+        return False
 
     def _detect_python(self) -> bool:
         indicators = ["setup.py", "requirements.txt", "setup.cfg", "Pipfile"]

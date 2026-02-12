@@ -55,10 +55,10 @@ class ReadmeCiBadgeRule(Rule):
     fix_type = FixType.NONE
 
     def applies_to(self, repo):
-        return repo.has_workflows
+        return repo.has_ci_workflow
 
     def check(self, repo):
-        if not repo.has_workflows:
+        if not repo.has_ci_workflow:
             return CheckResult(Status.SKIP)
 
         readme = repo.path / "README.md"

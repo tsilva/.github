@@ -127,7 +127,7 @@ tsilva-maintain report taglines|tracked-ignored <repos-dir> [--filter PAT]
 - `src/tsilva_maintain/cli.py` — argparse entry point
 - `src/tsilva_maintain/engine.py` — RuleRunner: discover → check → fix → report
 - `src/tsilva_maintain/repo.py` — Repo dataclass with lazy-cached properties
-- `src/tsilva_maintain/rules/` — one file per compliance rule (25 total), auto-discovered via `pkgutil`
+- `src/tsilva_maintain/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
 - `src/tsilva_maintain/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
 - `src/tsilva_maintain/rules/_registry.py` — auto-discovery + canonical ordering
 - `src/tsilva_maintain/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
