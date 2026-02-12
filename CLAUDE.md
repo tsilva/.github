@@ -24,8 +24,6 @@ All scripts follow the pattern: `./scripts/<name>.sh [--dry-run] [--filter PATTE
 Skills in `.claude/skills/` provide AI-dependent maintenance operations:
 
 - `maintain-repos` — orchestrator: audit → sync scripts → AI fixes
-- `fix-readme` — README remediation (delegates to `project-readme-author`)
-- `fix-logo` — logo remediation (delegates to `project-logo-author`)
 
 ## Workflows
 
@@ -108,6 +106,8 @@ Set `publish_to_pypi: false` for non-Python repos:
 - `sync-sandbox.sh` — enable Claude sandbox in `.claude/settings.json`
 - `sync-settings.sh` — remove redundant permissions, migrate WebFetch domains to sandbox
 - `sync-dependabot.sh` — create `dependabot.yml` with auto-detected ecosystems
+- `sync-readme-license.sh` — append license section to README if missing
+- `sync-readme-logo.sh` — insert logo reference in README if missing
 - `sync-repo-descriptions.sh` — sync GitHub descriptions from README tagline
 
 ### Reports

@@ -84,6 +84,8 @@ REPOS_DIR="<repos-dir>"
 "$SCRIPTS/sync-settings.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-dependabot.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-gitignore.sh" "$REPOS_DIR"
+"$SCRIPTS/sync-readme-license.sh" "$REPOS_DIR"
+"$SCRIPTS/sync-readme-logo.sh" "$REPOS_DIR"
 ```
 
 Each script only creates files that are missing — existing files are never overwritten.
@@ -99,11 +101,14 @@ Each script only creates files that are missing — existing files are never ove
 Process remaining failures per repo. For each repo with failures:
 
 1. `cd` into the repo directory
-2. For **README** failures (README_EXISTS, README_CURRENT, README_LICENSE, README_LOGO):
-   - Use the `fix-readme` skill: delegate to `.claude/skills/fix-readme/SKILL.md`
-   - For README_LOGO: ensure logo exists first (run `fix-logo` if LOGO_EXISTS also failed)
+2. For **README** failures (README_EXISTS, README_CURRENT):
+   - If README.md is missing: use `/project-readme-author create` to generate one
+   - If README exists but is stale/placeholder: use `/project-readme-author optimize` to update it
 3. For **LOGO** failures (LOGO_EXISTS):
-   - Use the `fix-logo` skill: delegate to `.claude/skills/fix-logo/SKILL.md`
+   - Use `/project-logo-author` to generate a logo
+   - Verify the result: must be at `logo.png` in repo root, transparent background, includes project name as text
+   - Check with `mcp__image-tools__get_image_metadata` and visual inspection
+   - If verification fails, regenerate with specific corrections
 4. For **GITIGNORE_COMPLETE**: append missing patterns to .gitignore
 5. For **TRACKED_IGNORED**: list the files and suggest `git rm --cached` commands
 6. For **PYTHON_PYPROJECT**: generate a minimal pyproject.toml
