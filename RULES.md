@@ -43,35 +43,49 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 - **Fix:** `fix-logo` skill (delegates to `project-logo-author`) — automated
 - **Details:** A logo must exist in a standard location (`logo.png`, `logo.svg`, `logo.jpg`, or under `assets/`, `images/`, `.github/`). Logo should be a square icon with transparent background, 512x512 or similar.
 
-### 1.6 LICENSE must exist
+### 1.6 README must reference logo
+
+- **Applies to:** all repos
+- **Check:** `README_LOGO` — automated
+- **Fix:** `fix-readme` skill — AI-dependent
+- **Details:** README.md must contain an image reference to the project logo (markdown `![...](logo.png)` or HTML `<img>`). Logo may be at root or under `assets/`, `images/`, or `.github/`.
+
+### 1.7 Logo must contain repo name
+
+- **Applies to:** all repos
+- **Check:** not implemented (requires visual inspection)
+- **Fix:** `fix-logo` skill (delegates to `project-logo-author`) — AI-dependent
+- **Details:** The project logo must visually include the repository name as text alongside the icon. Verified during AI-assisted maintenance via visual inspection.
+
+### 1.8 LICENSE must exist
 
 - **Applies to:** all repos
 - **Check:** `LICENSE_EXISTS` — automated
 - **Fix:** `sync-license.sh` — automated
 - **Details:** A `LICENSE`, `LICENSE.md`, or `LICENSE.txt` file must exist. All tsilva repos use MIT license. The sync script creates from template with current year and author.
 
-### 1.7 .gitignore must exist
+### 1.9 .gitignore must exist
 
 - **Applies to:** all repos
 - **Check:** `GITIGNORE_EXISTS` — automated
 - **Fix:** `sync-gitignore.sh` — automated
 - **Details:** Every repo must have a `.gitignore` file.
 
-### 1.8 .gitignore must include essential patterns
+### 1.10 .gitignore must include essential patterns
 
 - **Applies to:** all repos
 - **Check:** `GITIGNORE_COMPLETE` — automated
 - **Fix:** `sync-gitignore.sh` — automated
 - **Details:** `.gitignore` must include these patterns: `.env`, `.DS_Store`, `node_modules/`, `__pycache__/`, `*.pyc`, `.venv/`. The sync script appends missing rules from `gitignore.global`.
 
-### 1.9 No tracked files matching gitignore
+### 1.11 No tracked files matching gitignore
 
 - **Applies to:** all repos
 - **Check:** `TRACKED_IGNORED` — automated
 - **Fix:** manual (`git rm --cached`)
 - **Details:** Files that match `.gitignore` patterns must not be tracked by git. Detected via `git ls-files -i --exclude-standard`. Requires manual review before removal since untracking may affect collaborators.
 
-### 1.10 GitHub description must match README tagline
+### 1.12 GitHub description must match README tagline
 
 - **Applies to:** all repos
 - **Check:** not implemented
@@ -198,15 +212,40 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 
 ---
 
+## 7. Git Hygiene
+
+### 7.1 No pending commits
+
+- **Applies to:** all repos
+- **Check:** `PENDING_COMMITS` — automated
+- **Fix:** manual (review and commit/push)
+- **Details:** Repos must not have uncommitted changes or unpushed commits. Detected via `git status --porcelain` and `git log @{u}..`. Requires human review before committing or pushing.
+
+### 7.2 No stale branches
+
+- **Applies to:** all repos
+- **Check:** `STALE_BRANCHES` — automated
+- **Fix:** manual (`git branch -d`)
+- **Details:** Repos must not have branches that are already merged into main or inactive for more than 90 days. Merged branches should be deleted with `git branch -d`. Stale branches require human review before deletion.
+
+### 7.3 Default branch must be "main"
+
+- **Applies to:** all repos
+- **Check:** `DEFAULT_BRANCH` — automated
+- **Fix:** manual (`git branch -m master main` + `gh repo edit --default-branch main`)
+- **Details:** Every repo must have a `main` branch. Repos still using `master` as default should be migrated. Requires coordination to avoid breaking CI/CD and collaborator workflows.
+
+---
+
 ## Automation Coverage
 
 | Metric | Count | Rules |
 |--------|-------|-------|
-| **Audit checks** | 14 of 24 | 1.1-1.3, 1.5-1.9, 2.1, 3.1, 5.1-5.4 |
-| **Automated fixes** (sync scripts) | 7 scripts covering 8 rules | 1.6-1.8, 1.10, 2.1, 5.1, 5.2, 5.4 |
-| **AI-dependent fixes** (skills) | 3 skills covering 4 rules | 1.1-1.3, 1.5 |
-| **Manual fix only** | 2 rules | 1.9, 5.3 |
-| **No automation** | 10 rules | 1.4, 1.10 (check only), 3.2-3.5, 4.1-4.2, 6.1-6.2 |
+| **Audit checks** | 18 of 29 | 1.1-1.3, 1.5-1.6, 1.8-1.11, 2.1, 3.1, 5.1-5.4, 7.1-7.3 |
+| **Automated fixes** (sync scripts) | 7 scripts covering 8 rules | 1.8-1.10, 1.12, 2.1, 5.1, 5.2, 5.4 |
+| **AI-dependent fixes** (skills) | 3 skills covering 5 rules | 1.1-1.3, 1.5-1.6, 1.7 |
+| **Manual fix only** | 5 rules | 1.11, 5.3, 7.1-7.3 |
+| **No automation** | 11 rules | 1.4, 1.7 (check only), 1.12 (check only), 3.2-3.5, 4.1-4.2, 6.1-6.2 |
 
 ## Implementation Backlog
 
@@ -217,7 +256,7 @@ Unimplemented rules, ordered by implementation complexity (simplest first):
 | 1 | `PYTHON_MIN_VERSION` | 3.3 — requires-python field | Simple pyproject.toml field check |
 | 2 | `README_CI_BADGE` | 1.4 — CI badge in README | Regex for badge URL + workflow existence check |
 | 3 | `PYTHON_CI_WORKFLOW` | 4.1 — CI workflow exists | Check for workflow YAML referencing reusable workflows |
-| 4 | `REPO_DESCRIPTION` | 1.10 — description matches tagline | Compare GitHub API description vs README tagline |
+| 4 | `REPO_DESCRIPTION` | 1.12 — description matches tagline | Compare GitHub API description vs README tagline |
 | 5 | `PYTHON_UV_INSTALL` | 3.2 — UV installable | Validate pyproject.toml structure for PEP 621 |
 | 6 | `PYTHON_CLI_PYPI` | 3.4 — CLI on PyPI | Detect `[project.scripts]`, verify release workflow |
 | 7 | `RELEASE_WORKFLOW` | 4.2 — release workflow exists | Check versioned projects reference release.yml |

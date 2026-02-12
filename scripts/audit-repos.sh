@@ -16,8 +16,9 @@ Usage: $(basename "$0") [OPTIONS] <repos-dir>
 
 Audits all git repos for compliance with tsilva org standards.
 
-Checks: README, logo, LICENSE, .gitignore, CLAUDE.md, sandbox settings,
-dependabot config, tracked-ignored files, Python project config,
+Checks: default branch, README, logo, LICENSE, .gitignore, CLAUDE.md,
+sandbox settings, dependabot config, tracked-ignored files,
+pending commits, stale branches, Python project config,
 Claude settings (dangerous patterns, redundant permissions).
 
 Arguments:
@@ -296,11 +297,104 @@ check_settings_clean() {
     fi
 }
 
+check_default_branch() {
+    local dir="$1"
+    if git -C "$dir" rev-parse --verify main &>/dev/null; then
+        echo "PASS"
+    else
+        echo "FAIL	No 'main' branch found"
+    fi
+}
+
+check_readme_logo() {
+    local dir="$1"
+    local readme="$dir/README.md"
+    [[ ! -f "$readme" ]] && { echo "FAIL	README.md does not exist"; return; }
+    # Markdown image: ![...](logo. or ![...](assets/logo. etc.
+    if grep -qiE '!\[.*\]\(\.?/?((assets|images|\.github)/)?logo\.' "$readme" 2>/dev/null; then
+        echo "PASS"; return
+    fi
+    # HTML img: <img...src="logo. etc.
+    if grep -qiE '<img[^>]+src=.\.?/?((assets|images|\.github)/)?logo\.' "$readme" 2>/dev/null; then
+        echo "PASS"; return
+    fi
+    echo "FAIL	README does not reference logo"
+}
+
+check_pending_commits() {
+    local dir="$1"
+    local issues=()
+    local porcelain
+    porcelain=$(git -C "$dir" status --porcelain 2>/dev/null || true)
+    if [[ -n "$porcelain" ]]; then
+        local count
+        count=$(echo "$porcelain" | wc -l | tr -d ' ')
+        issues+=("$count uncommitted change(s)")
+    fi
+    local unpushed
+    unpushed=$(git -C "$dir" log '@{u}..' --oneline 2>/dev/null || true)
+    if [[ -n "$unpushed" ]]; then
+        local count
+        count=$(echo "$unpushed" | wc -l | tr -d ' ')
+        issues+=("$count unpushed commit(s)")
+    fi
+    if [[ ${#issues[@]} -eq 0 ]]; then
+        echo "PASS"
+    else
+        local msg
+        msg=$(IFS='; '; echo "${issues[*]}")
+        echo "FAIL	$msg"
+    fi
+}
+
+check_stale_branches() {
+    local dir="$1"
+    local issues=()
+    # Merged into main (excluding main/master)
+    local merged
+    merged=$(git -C "$dir" branch --merged main 2>/dev/null \
+        | sed 's/^[* ] //' \
+        | grep -vE '^(main|master)$' \
+        || true)
+    if [[ -n "$merged" ]]; then
+        local count
+        count=$(echo "$merged" | wc -l | tr -d ' ')
+        local names
+        names=$(echo "$merged" | paste -sd ',' - | sed 's/,/, /g')
+        issues+=("$count merged branch(es): $names")
+    fi
+    # Inactive >90 days (exclude main/master)
+    local cutoff
+    cutoff=$(date -v-90d +%s)
+    local stale_names=()
+    while IFS=' ' read -r branch epoch; do
+        [[ -z "$branch" ]] && continue
+        [[ "$branch" == "main" || "$branch" == "master" ]] && continue
+        if [[ "$epoch" -lt "$cutoff" ]]; then
+            stale_names+=("$branch")
+        fi
+    done < <(git -C "$dir" for-each-ref --format='%(refname:short) %(committerdate:unix)' refs/heads/ 2>/dev/null)
+    if [[ ${#stale_names[@]} -gt 0 ]]; then
+        local names
+        names=$(IFS=', '; echo "${stale_names[*]}")
+        issues+=("${#stale_names[@]} stale branch(es) (>90d): $names")
+    fi
+    if [[ ${#issues[@]} -eq 0 ]]; then
+        echo "PASS"
+    else
+        local msg
+        msg=$(IFS='; '; echo "${issues[*]}")
+        echo "FAIL	$msg"
+    fi
+}
+
 # --- All checks in order ---
 ALL_CHECKS=(
+    "DEFAULT_BRANCH:check_default_branch"
     "README_EXISTS:check_readme_exists"
     "README_CURRENT:check_readme_current"
     "README_LICENSE:check_readme_has_license"
+    "README_LOGO:check_readme_logo"
     "LOGO_EXISTS:check_logo_exists"
     "LICENSE_EXISTS:check_license_exists"
     "GITIGNORE_EXISTS:check_gitignore_exists"
@@ -309,6 +403,8 @@ ALL_CHECKS=(
     "CLAUDE_SANDBOX:check_claude_sandbox"
     "DEPENDABOT_EXISTS:check_dependabot_exists"
     "TRACKED_IGNORED:check_tracked_ignored"
+    "PENDING_COMMITS:check_pending_commits"
+    "STALE_BRANCHES:check_stale_branches"
     "PYTHON_PYPROJECT:check_python_pyproject"
     "SETTINGS_DANGEROUS:check_settings_dangerous"
     "SETTINGS_CLEAN:check_settings_clean"

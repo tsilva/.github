@@ -44,13 +44,15 @@ Or for machine-readable output:
 {SKILL_DIR}/../../scripts/audit-repos.sh --json <repos-dir>
 ```
 
-### Checks (14 per repo)
+### Checks (18 per repo)
 
 | Check | What it detects |
 |-------|----------------|
+| DEFAULT_BRANCH | Repo has a "main" branch |
 | README_EXISTS | README.md file exists |
 | README_CURRENT | No placeholders, adequate length, has install/usage |
 | README_LICENSE | README mentions license |
+| README_LOGO | README references the project logo |
 | LOGO_EXISTS | Logo in standard locations |
 | LICENSE_EXISTS | LICENSE/LICENSE.md/LICENSE.txt exists |
 | GITIGNORE_EXISTS | .gitignore exists |
@@ -59,6 +61,8 @@ Or for machine-readable output:
 | CLAUDE_SANDBOX | sandbox.enabled: true in .claude/settings*.json |
 | DEPENDABOT_EXISTS | .github/dependabot.yml exists |
 | TRACKED_IGNORED | No tracked files matching gitignore |
+| PENDING_COMMITS | No uncommitted changes or unpushed commits |
+| STALE_BRANCHES | No merged or inactive (>90d) branches |
 | PYTHON_PYPROJECT | pyproject.toml exists (Python projects only) |
 | SETTINGS_DANGEROUS | No dangerous permission patterns (e.g. `Bash(*:*)`) |
 | SETTINGS_CLEAN | No redundant permissions or unmigrated WebFetch domains |
@@ -95,14 +99,18 @@ Each script only creates files that are missing — existing files are never ove
 Process remaining failures per repo. For each repo with failures:
 
 1. `cd` into the repo directory
-2. For **README** failures (README_EXISTS, README_CURRENT, README_LICENSE):
+2. For **README** failures (README_EXISTS, README_CURRENT, README_LICENSE, README_LOGO):
    - Use the `fix-readme` skill: delegate to `.claude/skills/fix-readme/SKILL.md`
+   - For README_LOGO: ensure logo exists first (run `fix-logo` if LOGO_EXISTS also failed)
 3. For **LOGO** failures (LOGO_EXISTS):
    - Use the `fix-logo` skill: delegate to `.claude/skills/fix-logo/SKILL.md`
 4. For **GITIGNORE_COMPLETE**: append missing patterns to .gitignore
 5. For **TRACKED_IGNORED**: list the files and suggest `git rm --cached` commands
 6. For **PYTHON_PYPROJECT**: generate a minimal pyproject.toml
 7. For **SETTINGS_DANGEROUS**: list the dangerous patterns and require human review — do NOT auto-remove
+8. For **DEFAULT_BRANCH**: suggest `git branch -m master main` + `gh repo edit --default-branch main` — do NOT auto-rename
+9. For **PENDING_COMMITS**: list the uncommitted changes and unpushed commits, suggest user review and commit/push — do NOT auto-commit
+10. For **STALE_BRANCHES**: list branches, suggest `git branch -d <branch>` for merged branches — do NOT auto-delete
 
 ### Step 4: Final Audit
 

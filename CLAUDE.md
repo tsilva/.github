@@ -98,7 +98,7 @@ Set `publish_to_pypi: false` for non-Python repos:
 
 ### Audit
 
-- `audit-repos.sh` — comprehensive compliance audit (14 checks per repo, `--json` for machine output)
+- `audit-repos.sh` — comprehensive compliance audit (18 checks per repo, `--json` for machine output)
 
 ### Sync (safe, idempotent)
 

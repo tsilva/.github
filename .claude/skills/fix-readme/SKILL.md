@@ -14,6 +14,7 @@ Called by `maintain-repos` skill when audit finds:
 - `README_EXISTS` — README.md is missing
 - `README_CURRENT` — README has stale/placeholder content
 - `README_LICENSE` — README is missing a license section
+- `README_LOGO` — README does not reference the project logo
 
 ## Workflow
 
@@ -56,6 +57,18 @@ MIT
 ```
 
 Only append this if a LICENSE file exists in the repo. If no LICENSE file exists, note that `sync-license.sh` should be run first.
+
+### 5. Fix Missing Logo Reference
+
+If the README exists but doesn't reference the logo, insert a logo image at the top of the README (after the title):
+
+```html
+<p align="center">
+  <img src="logo.png" alt="project-name logo" width="200">
+</p>
+```
+
+Adjust the `src` path based on the actual logo location (e.g., `assets/logo.png`, `.github/logo.png`). If no logo file exists in the repo, note that the `fix-logo` skill must be run first.
 
 ## Conventions
 
