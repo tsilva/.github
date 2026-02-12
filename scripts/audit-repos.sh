@@ -17,9 +17,9 @@ Usage: $(basename "$0") [OPTIONS] <repos-dir>
 Audits all git repos for compliance with tsilva org standards.
 
 Checks: default branch, README, logo, LICENSE, .gitignore, CLAUDE.md,
-sandbox settings, dependabot config, tracked-ignored files,
-pending commits, stale branches, Python project config,
-Claude settings (dangerous patterns, redundant permissions).
+sandbox settings, dependabot config, pre-commit gitleaks hook,
+tracked-ignored files, pending commits, stale branches,
+Python project config, Claude settings (dangerous patterns, redundant permissions).
 
 Arguments:
     repos-dir       Directory containing git repositories
@@ -236,6 +236,30 @@ check_dependabot_exists() {
     fi
 }
 
+check_precommit_gitleaks() {
+    local dir="$1"
+    local repo_name
+    repo_name=$(basename "$dir")
+
+    # Skip .github repo (it defines the hook, doesn't consume it)
+    if [[ "$repo_name" == ".github" ]]; then
+        echo "SKIP"
+        return
+    fi
+
+    local config="$dir/.pre-commit-config.yaml"
+    if [[ ! -f "$config" ]]; then
+        echo "FAIL	.pre-commit-config.yaml not found"
+        return
+    fi
+
+    if grep -q "tsilva/\.github" "$config" 2>/dev/null; then
+        echo "PASS"
+    else
+        echo "FAIL	.pre-commit-config.yaml missing gitleaks hook"
+    fi
+}
+
 check_tracked_ignored() {
     local dir="$1"
     local tracked_ignored
@@ -402,6 +426,7 @@ ALL_CHECKS=(
     "CLAUDE_MD_EXISTS:check_claude_md_exists"
     "CLAUDE_SANDBOX:check_claude_sandbox"
     "DEPENDABOT_EXISTS:check_dependabot_exists"
+    "PRECOMMIT_GITLEAKS:check_precommit_gitleaks"
     "TRACKED_IGNORED:check_tracked_ignored"
     "PENDING_COMMITS:check_pending_commits"
     "STALE_BRANCHES:check_stale_branches"

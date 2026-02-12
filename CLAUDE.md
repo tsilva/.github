@@ -96,7 +96,7 @@ Set `publish_to_pypi: false` for non-Python repos:
 
 ### Audit
 
-- `audit-repos.sh` — comprehensive compliance audit (18 checks per repo, `--json` for machine output)
+- `audit-repos.sh` — comprehensive compliance audit (19 checks per repo, `--json` for machine output)
 
 ### Sync (safe, idempotent)
 
@@ -108,7 +108,12 @@ Set `publish_to_pypi: false` for non-Python repos:
 - `sync-dependabot.sh` — create `dependabot.yml` with auto-detected ecosystems
 - `sync-readme-license.sh` — append license section to README if missing
 - `sync-readme-logo.sh` — insert logo reference in README if missing
+- `sync-precommit.sh` — create/append gitleaks pre-commit hook config
 - `sync-repo-descriptions.sh` — sync GitHub descriptions from README tagline
+
+### Git Operations
+
+- `commit-repos.sh` — interactive AI-assisted commit & push for dirty repos (Claude CLI generates messages, graceful fallback to manual entry)
 
 ### Reports
 
@@ -126,6 +131,7 @@ Templates used by sync scripts:
 - `scripts/templates/LICENSE` — MIT license (`[year]`/`[fullname]` placeholders)
 - `scripts/templates/CLAUDE.md` — minimal CLAUDE.md (`[project-name]` placeholder)
 - `scripts/templates/dependabot.yml` — base dependabot config
+- `scripts/templates/pre-commit-config.yaml` — pre-commit config with gitleaks hook
 
 ## Pre-commit Hook
 

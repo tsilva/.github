@@ -205,10 +205,10 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 
 ### 6.2 Pre-commit hooks for secret scanning
 
-- **Applies to:** all repos
-- **Check:** not implemented
-- **Fix:** not implemented
-- **Details:** Repos should configure pre-commit with gitleaks for local secret scanning before push. Requires a `.pre-commit-config.yaml` referencing `tsilva/.github` with the `gitleaks` hook ID.
+- **Applies to:** all repos (except `.github` which defines the hook)
+- **Check:** `PRECOMMIT_GITLEAKS` — automated
+- **Fix:** `sync-precommit.sh` — automated
+- **Details:** Repos should configure pre-commit with gitleaks for local secret scanning before push. Requires a `.pre-commit-config.yaml` referencing `tsilva/.github` with the `gitleaks` hook ID. The sync script creates the file from template if missing, or appends the hook if the file exists but lacks it.
 
 ---
 
@@ -241,11 +241,11 @@ Canonical specification of compliance rules for the `tsilva` GitHub organization
 
 | Metric | Count | Rules |
 |--------|-------|-------|
-| **Audit checks** | 18 of 29 | 1.1-1.3, 1.5-1.6, 1.8-1.11, 2.1, 3.1, 5.1-5.4, 7.1-7.3 |
-| **Automated fixes** (sync scripts) | 7 scripts covering 8 rules | 1.8-1.10, 1.12, 2.1, 5.1, 5.2, 5.4 |
+| **Audit checks** | 19 of 29 | 1.1-1.3, 1.5-1.6, 1.8-1.11, 2.1, 3.1, 5.1-5.4, 6.2, 7.1-7.3 |
+| **Automated fixes** (sync scripts) | 8 scripts covering 9 rules | 1.8-1.10, 1.12, 2.1, 5.1, 5.2, 5.4, 6.2 |
 | **AI-dependent fixes** (skills) | 3 skills covering 5 rules | 1.1-1.3, 1.5-1.6, 1.7 |
 | **Manual fix only** | 5 rules | 1.11, 5.3, 7.1-7.3 |
-| **No automation** | 11 rules | 1.4, 1.7 (check only), 1.12 (check only), 3.2-3.5, 4.1-4.2, 6.1-6.2 |
+| **No automation** | 10 rules | 1.4, 1.7 (check only), 1.12 (check only), 3.2-3.5, 4.1-4.2, 6.1 |
 
 ## Implementation Backlog
 
@@ -261,5 +261,4 @@ Unimplemented rules, ordered by implementation complexity (simplest first):
 | 6 | `PYTHON_CLI_PYPI` | 3.4 — CLI on PyPI | Detect `[project.scripts]`, verify release workflow |
 | 7 | `RELEASE_WORKFLOW` | 4.2 — release workflow exists | Check versioned projects reference release.yml |
 | 8 | `PII_SCAN_ENABLED` | 6.1 — gitleaks in CI | Implicit if using release.yml, explicit check otherwise |
-| 9 | `PRECOMMIT_GITLEAKS` | 6.2 — pre-commit with gitleaks | Check .pre-commit-config.yaml for gitleaks hook |
-| 10 | `PYTHON_CLI_HOMEBREW` | 3.5 — CLI on Homebrew | Needs Homebrew tap strategy decided first |
+| 9 | `PYTHON_CLI_HOMEBREW` | 3.5 — CLI on Homebrew | Needs Homebrew tap strategy decided first |

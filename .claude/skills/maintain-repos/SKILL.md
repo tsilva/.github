@@ -44,7 +44,7 @@ Or for machine-readable output:
 {SKILL_DIR}/../../scripts/audit-repos.sh --json <repos-dir>
 ```
 
-### Checks (18 per repo)
+### Checks (19 per repo)
 
 | Check | What it detects |
 |-------|----------------|
@@ -60,6 +60,7 @@ Or for machine-readable output:
 | CLAUDE_MD_EXISTS | CLAUDE.md exists |
 | CLAUDE_SANDBOX | sandbox.enabled: true in .claude/settings*.json |
 | DEPENDABOT_EXISTS | .github/dependabot.yml exists |
+| PRECOMMIT_GITLEAKS | .pre-commit-config.yaml has gitleaks hook (skips .github) |
 | TRACKED_IGNORED | No tracked files matching gitignore |
 | PENDING_COMMITS | No uncommitted changes or unpushed commits |
 | STALE_BRANCHES | No merged or inactive (>90d) branches |
@@ -86,6 +87,7 @@ REPOS_DIR="<repos-dir>"
 "$SCRIPTS/sync-gitignore.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-readme-license.sh" "$REPOS_DIR"
 "$SCRIPTS/sync-readme-logo.sh" "$REPOS_DIR"
+"$SCRIPTS/sync-precommit.sh" "$REPOS_DIR"
 ```
 
 Each script only creates files that are missing — existing files are never overwritten.
