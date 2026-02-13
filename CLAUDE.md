@@ -14,7 +14,7 @@ Modular reusable workflows triggered via `workflow_call`. Each workflow handles 
 
 The primary maintenance tool. A Python package in `src/tsilva_maintain/` installable via `uv tool install` or `uv pip install -e .`. Each compliance rule is a self-contained class in `src/tsilva_maintain/rules/` with `check()` and `fix()` methods, auto-discovered via `pkgutil`.
 
-Commands: `tsilva-maintain [repos-dir]` (default: check+fix), `tsilva-maintain --check-only`, `tsilva-maintain report`
+Commands: `tsilva-maintain [repos-dir]` (check+fix), `tsilva-maintain --dry-run` (preview), `tsilva-maintain report`
 
 ### Scripts
 
@@ -65,7 +65,7 @@ Composes `test.yml` + `pii-scan.yml` in parallel for PR-time checks. Caller repo
 
 ### `audit.yml`
 
-Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `tsilva-maintain --check-only --json`, posts results to GitHub Step Summary, uploads JSON artifact.
+Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `tsilva-maintain --dry-run --json`, posts results to GitHub Step Summary, uploads JSON artifact.
 
 ### `release.yml` (composer)
 
@@ -115,11 +115,11 @@ uv tool install tsilva-maintain  # global CLI
 ### Commands
 
 ```
-tsilva-maintain [repos-dir] [-f PAT] [-c|--check-only] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
+tsilva-maintain [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
 tsilva-maintain report taglines|tracked-ignored [repos-dir] [-f PAT]
 ```
 
-Running with no flags performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Use `--check-only` to audit without fixing. Use `--dry-run` to preview fixes without modifying files.
+Running with no flags performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Use `--dry-run` to preview what would be fixed without modifying files.
 
 ### Package Structure
 

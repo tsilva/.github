@@ -39,9 +39,8 @@ def _build_maintain_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
     parser.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
-    parser.add_argument("-c", "--check-only", dest="check_only", action="store_true", help="Audit without fixing")
     parser.add_argument("-j", "--json", dest="json_output", action="store_true", help="Output JSON report to stdout")
-    parser.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show what would be done without executing")
+    parser.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Check and show what would be fixed without modifying files")
     parser.add_argument("--rule", dest="rule_filter", default=None, help="Run only this rule ID")
     parser.add_argument("--category", dest="category_filter", default=None, help="Run only rules in this category")
     return parser
@@ -99,7 +98,6 @@ def main(argv: list[str] | None = None) -> None:
             category_filter=args.category_filter,
         )
         sys.exit(runner.run(
-            check_only=args.check_only,
             dry_run=args.dry_run,
             json_output=args.json_output,
         ))

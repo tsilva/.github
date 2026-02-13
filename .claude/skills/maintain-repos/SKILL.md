@@ -1,7 +1,7 @@
 ---
 name: maintain-repos
 description: Audit and remediate repos for tsilva org standardization. Run from repos parent directory.
-argument-hint: "[--check-only] [--filter PATTERN] <repos-dir>"
+argument-hint: "[--dry-run] [--filter PATTERN] <repos-dir>"
 ---
 
 # Maintain Repos
@@ -28,7 +28,7 @@ uv tool install tsilva-maintain --from /path/to/.github
 | Operation | Triggers | Purpose |
 |-----------|----------|---------|
 | default (maintain) | no keyword, "maintain", "fix" | Single-pass check + fix cycle |
-| `--check-only` | "audit", "check", "scan" | Run all checks, show report |
+| `--dry-run` | "audit", "check", "scan", "dry run" | Preview what would be fixed without modifying files |
 | `report` | "report", "taglines" | Generate reports |
 
 ### Operation Detection
@@ -69,16 +69,16 @@ After running `tsilva-maintain`, check output for remaining manual issues. For e
 ### Final Verification
 
 ```bash
-tsilva-maintain --check-only <repos-dir>
+tsilva-maintain --dry-run <repos-dir>
 ```
 
-## Check-Only (Audit)
+## Dry Run (Audit)
 
 ```bash
-tsilva-maintain --check-only <repos-dir>
-tsilva-maintain --check-only --json <repos-dir>
-tsilva-maintain --check-only --filter my-project <repos-dir>
-tsilva-maintain --check-only --rule README_EXISTS <repos-dir>
+tsilva-maintain --dry-run <repos-dir>
+tsilva-maintain --dry-run --json <repos-dir>
+tsilva-maintain --dry-run --filter my-project <repos-dir>
+tsilva-maintain --dry-run --rule README_EXISTS <repos-dir>
 ```
 
 ### Checks (24 per repo)
@@ -129,7 +129,7 @@ tsilva-maintain --filter my-project <repos-dir>
 
 ```
 /maintain-repos ~/repos/tsilva
-/maintain-repos --check-only ~/repos/tsilva
+/maintain-repos --dry-run ~/repos/tsilva
 /maintain-repos --dry-run ~/repos/tsilva
 /maintain-repos --filter my-project ~/repos/tsilva
 /maintain-repos report taglines ~/repos/tsilva

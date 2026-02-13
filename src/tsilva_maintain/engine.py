@@ -80,7 +80,6 @@ class RuleRunner:
     def run(
         self,
         *,
-        check_only: bool = False,
         dry_run: bool = False,
         json_output: bool = False,
     ) -> int:
@@ -113,21 +112,20 @@ class RuleRunner:
                     rr.results.append(RuleResult(rule.id, "skip"))
                     continue
 
-                # Rule failed
-                if check_only:
-                    rr.results.append(RuleResult(rule.id, "failed", result.message))
-                    continue
-
-                # Attempt fix
+                # Rule failed — attempt fix
                 outcome = rule.fix(repo, dry_run=dry_run)
 
                 if outcome.status == FixOutcome.FIXED:
-                    # Re-check to verify the fix worked
-                    verify = rule.check(repo)
-                    if verify.status == Status.PASS:
+                    if dry_run:
+                        # Trust the fix outcome — no re-verify since files weren't modified
                         rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
                     else:
-                        rr.results.append(RuleResult(rule.id, "fix_failed", verify.message))
+                        # Re-check to verify the fix actually worked
+                        verify = rule.check(repo)
+                        if verify.status == Status.PASS:
+                            rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
+                        else:
+                            rr.results.append(RuleResult(rule.id, "fix_failed", verify.message))
                 elif outcome.status == FixOutcome.ALREADY_OK:
                     rr.results.append(RuleResult(rule.id, "pass"))
                 elif outcome.status == FixOutcome.MANUAL:
@@ -142,17 +140,16 @@ class RuleRunner:
         if json_output:
             return self._output_json(repos, repo_results)
 
-        return self._output_summary(repo_results, check_only=check_only, dry_run=dry_run)
+        return self._output_summary(repo_results, dry_run=dry_run)
 
     def _output_summary(
         self,
         repo_results: list[RepoResult],
         *,
-        check_only: bool,
         dry_run: bool,
     ) -> int:
         """Print compact per-repo summary with expanded details for failures."""
-        mode = "Check" if check_only else ("Maintain (dry run)" if dry_run else "Maintain")
+        mode = "Maintain (dry run)" if dry_run else "Maintain"
         output.banner(mode)
         output.info(f"Directory: {self.repos_dir}")
         output.info(f"Repositories: {len(repo_results)}")

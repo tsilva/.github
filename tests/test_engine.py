@@ -3,15 +3,15 @@
 from tsilva_maintain.engine import RuleRunner
 
 
-def test_run_check_only(repos_dir):
+def test_run_dry_run_audit(repos_dir):
     runner = RuleRunner(repos_dir=repos_dir)
-    exit_code = runner.run(check_only=True)
+    exit_code = runner.run(dry_run=True)
     assert exit_code in (0, 1)
 
 
 def test_run_json(repos_dir, capsys):
     runner = RuleRunner(repos_dir=repos_dir)
-    runner.run(check_only=True, json_output=True)
+    runner.run(dry_run=True, json_output=True)
     import json
     captured = capsys.readouterr()
     report = json.loads(captured.out)
@@ -23,13 +23,13 @@ def test_run_json(repos_dir, capsys):
 
 def test_run_rule_filter(repos_dir):
     runner = RuleRunner(repos_dir=repos_dir, rule_filter="README_EXISTS")
-    exit_code = runner.run(check_only=True)
+    exit_code = runner.run(dry_run=True)
     assert exit_code == 0
 
 
 def test_run_no_repos(tmp_path):
     runner = RuleRunner(repos_dir=tmp_path)
-    exit_code = runner.run(check_only=True)
+    exit_code = runner.run(dry_run=True)
     assert exit_code == 0
 
 
