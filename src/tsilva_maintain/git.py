@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Union
 
 
 def run_git(repo_path: Path, *args: str, timeout: int = 10) -> subprocess.CompletedProcess:
@@ -97,3 +98,16 @@ def diff_head(repo_path: Path, max_lines: int = 200, color: bool = False) -> str
 def untracked_files(repo_path: Path) -> str:
     r = run_git(repo_path, "ls-files", "--others", "--exclude-standard")
     return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def fetch_all(repo_path: Path) -> subprocess.CompletedProcess:
+    return run_git(repo_path, "fetch", "--all", timeout=60)
+
+
+def clone_repo(nwo: str, target_dir: Union[str, Path]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["gh", "repo", "clone", nwo, str(target_dir)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )

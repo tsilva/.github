@@ -63,10 +63,6 @@ Composes `test.yml` + `pii-scan.yml` in parallel for PR-time checks. Caller repo
 
 - **Inputs:** `python-version` (string, default `"3.12"`), `pytest-args` (string, default `""`)
 
-### `audit.yml`
-
-Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `tsilva-maintain --dry-run --json`, posts results to GitHub Step Summary, uploads JSON artifact.
-
 ### `release.yml` (composer)
 
 Chains the above workflows together.
@@ -118,15 +114,17 @@ uv tool install tsilva-maintain  # global CLI
 tsilva-maintain [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
 tsilva-maintain commit [repos-dir] [-f PAT] [-n|--dry-run]
 tsilva-maintain report taglines|tracked-ignored [repos-dir] [-f PAT]
+tsilva-maintain sync [repos-dir] [-f PAT] [-n|--dry-run]
 ```
 
-Running with no flags performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Use `--dry-run` to preview what would be fixed without modifying files. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing.
+Running with no flags performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Use `--dry-run` to preview what would be fixed without modifying files. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `sync` subcommand clones missing repos and fetches updates for existing repos from the `tsilva` GitHub org.
 
 ### Package Structure
 
 - `src/tsilva_maintain/cli.py` — argparse entry point
 - `src/tsilva_maintain/engine.py` — RuleRunner: single-pass check → fix → verify per rule
 - `src/tsilva_maintain/commands/commit.py` — interactive AI-assisted commit & push
+- `src/tsilva_maintain/commands/sync.py` — clone missing repos & fetch updates from GitHub org
 - `src/tsilva_maintain/repo.py` — Repo dataclass with lazy-cached properties
 - `src/tsilva_maintain/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
 - `src/tsilva_maintain/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome

@@ -72,6 +72,24 @@ def get_workflow_conclusions(github_repo: str, branch: str = "main") -> dict[str
         return {}
 
 
+def list_org_repos(org: str) -> list[str]:
+    """Return sorted list of non-archived repo names for the given GitHub org."""
+    try:
+        r = subprocess.run(
+            ["gh", "repo", "list", org, "--no-archived", "--json", "name", "--limit", "1000"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if r.returncode != 0:
+            return []
+        import json
+        repos = json.loads(r.stdout)
+        return sorted(repo["name"] for repo in repos)
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, KeyError):
+        return []
+
+
 def set_repo_description(github_repo: str, description: str) -> bool:
     try:
         r = subprocess.run(

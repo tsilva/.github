@@ -57,11 +57,55 @@ class Repo:
         return (self.path / "pyproject.toml").is_file()
 
     @property
+    def is_cli(self) -> bool:
+        """True if pyproject.toml defines console entry points via [project.scripts]."""
+        if "is_cli" not in self._cache:
+            self._cache["is_cli"] = bool(self.cli_scripts)
+        return self._cache["is_cli"]
+
+    @property
+    def cli_scripts(self) -> dict[str, str]:
+        """Return the [project.scripts] dict from pyproject.toml, or empty dict."""
+        if "cli_scripts" not in self._cache:
+            self._cache["cli_scripts"] = self._parse_cli_scripts()
+        return self._cache["cli_scripts"]
+
+    @property
     def has_version(self) -> bool:
-        """Check if pyproject.toml has a project version."""
+        """Check if pyproject.toml has a static or dynamic version."""
         if "has_version" not in self._cache:
-            self._cache["has_version"] = self._check_pyproject_field("version")
+            self._cache["has_version"] = self._check_version()
         return self._cache["has_version"]
+
+    def _parse_cli_scripts(self) -> dict[str, str]:
+        pyproject = self.path / "pyproject.toml"
+        if not pyproject.is_file():
+            return {}
+        try:
+            import tomllib
+
+            with open(pyproject, "rb") as f:
+                data = tomllib.load(f)
+            scripts = data.get("project", {}).get("scripts", {})
+            return dict(scripts) if scripts else {}
+        except Exception:
+            return {}
+
+    def _check_version(self) -> bool:
+        pyproject = self.path / "pyproject.toml"
+        if not pyproject.is_file():
+            return False
+        try:
+            import tomllib
+
+            with open(pyproject, "rb") as f:
+                data = tomllib.load(f)
+            project = data.get("project", {})
+            if project.get("version", ""):
+                return True
+            return "version" in project.get("dynamic", [])
+        except Exception:
+            return False
 
     def _detect_ci_workflow(self) -> bool:
         wf_dir = self.path / ".github" / "workflows"

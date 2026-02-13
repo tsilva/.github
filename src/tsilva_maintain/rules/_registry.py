@@ -28,6 +28,11 @@ _CANONICAL_ORDER = [
     "SETTINGS_DANGEROUS",
     "SETTINGS_CLEAN",
     "PYTHON_MIN_VERSION",
+    # CLI project rules
+    "CLI_BUILD_BACKEND",
+    "CLI_VERSION",
+    "CLI_RELEASE_WORKFLOW",
+    "CLI_PYPI_READY",
     # Independent rules
     "DEPENDABOT_EXISTS",
     "PRECOMMIT_GITLEAKS",
