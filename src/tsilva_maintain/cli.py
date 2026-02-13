@@ -13,7 +13,7 @@ _REPOS_DIR_HELP = (
     f"(default: ${_REPOS_DIR_ENV} env var)"
 )
 
-_SUBCOMMANDS = {"report"}
+_SUBCOMMANDS = {"commit", "report"}
 
 
 def _resolve_repos_dir(args: argparse.Namespace) -> None:
@@ -46,6 +46,18 @@ def _build_maintain_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_commit_parser() -> argparse.ArgumentParser:
+    """Build parser for the commit subcommand."""
+    parser = argparse.ArgumentParser(
+        prog="tsilva-maintain commit",
+        description="Interactive AI-assisted commit & push for dirty repos",
+    )
+    parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
+    parser.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
+    parser.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show dirty repos without committing")
+    return parser
+
+
 def _build_report_parser() -> argparse.ArgumentParser:
     """Build parser for the report subcommand."""
     parser = argparse.ArgumentParser(
@@ -67,7 +79,20 @@ def main(argv: list[str] | None = None) -> None:
         command = argv[0]
         rest = argv[1:]
 
-        if command == "report":
+        if command == "commit":
+            parser = _build_commit_parser()
+            args = parser.parse_args(rest)
+            _resolve_repos_dir(args)
+
+            if not args.repos_dir.is_dir():
+                print(f"Error: Directory does not exist: {args.repos_dir}", file=sys.stderr)
+                sys.exit(1)
+
+            from tsilva_maintain.commands.commit import run_commit
+
+            sys.exit(run_commit(args.repos_dir, args.filter_pattern, args.dry_run))
+
+        elif command == "report":
             parser = _build_report_parser()
             args = parser.parse_args(rest)
             _resolve_repos_dir(args)

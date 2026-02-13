@@ -29,6 +29,7 @@ uv tool install tsilva-maintain --from /path/to/.github
 |-----------|----------|---------|
 | default (maintain) | no keyword, "maintain", "fix" | Single-pass check + fix cycle |
 | `--dry-run` | "audit", "check", "scan", "dry run" | Preview what would be fixed without modifying files |
+| `commit` | "commit", "push", "dirty" | AI-assisted commit & push for dirty repos |
 | `report` | "report", "taglines" | Generate reports |
 
 ### Operation Detection
@@ -70,6 +71,16 @@ After running `tsilva-maintain`, check output for remaining manual issues. For e
 
 ```bash
 tsilva-maintain --dry-run <repos-dir>
+```
+
+## Commit
+
+Interactive AI-assisted commit & push. Finds repos with uncommitted changes, generates commit messages via AI, prompts for approval, then commits and pushes.
+
+```bash
+tsilva-maintain commit <repos-dir>
+tsilva-maintain commit --dry-run <repos-dir>
+tsilva-maintain commit --filter my-project <repos-dir>
 ```
 
 ## Dry Run (Audit)
@@ -130,7 +141,7 @@ tsilva-maintain --filter my-project <repos-dir>
 ```
 /maintain-repos ~/repos/tsilva
 /maintain-repos --dry-run ~/repos/tsilva
-/maintain-repos --dry-run ~/repos/tsilva
 /maintain-repos --filter my-project ~/repos/tsilva
+/maintain-repos commit ~/repos/tsilva
 /maintain-repos report taglines ~/repos/tsilva
 ```

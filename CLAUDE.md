@@ -14,7 +14,7 @@ Modular reusable workflows triggered via `workflow_call`. Each workflow handles 
 
 The primary maintenance tool. A Python package in `src/tsilva_maintain/` installable via `uv tool install` or `uv pip install -e .`. Each compliance rule is a self-contained class in `src/tsilva_maintain/rules/` with `check()` and `fix()` methods, auto-discovered via `pkgutil`.
 
-Commands: `tsilva-maintain [repos-dir]` (check+fix), `tsilva-maintain --dry-run` (preview), `tsilva-maintain report`
+Commands: `tsilva-maintain [repos-dir]` (check+fix), `tsilva-maintain --dry-run` (preview), `tsilva-maintain commit` (AI-assisted commit+push), `tsilva-maintain report`
 
 ### Scripts
 
@@ -116,15 +116,17 @@ uv tool install tsilva-maintain  # global CLI
 
 ```
 tsilva-maintain [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
+tsilva-maintain commit [repos-dir] [-f PAT] [-n|--dry-run]
 tsilva-maintain report taglines|tracked-ignored [repos-dir] [-f PAT]
 ```
 
-Running with no flags performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Use `--dry-run` to preview what would be fixed without modifying files.
+Running with no flags performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Use `--dry-run` to preview what would be fixed without modifying files. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing.
 
 ### Package Structure
 
 - `src/tsilva_maintain/cli.py` — argparse entry point
 - `src/tsilva_maintain/engine.py` — RuleRunner: single-pass check → fix → verify per rule
+- `src/tsilva_maintain/commands/commit.py` — interactive AI-assisted commit & push
 - `src/tsilva_maintain/repo.py` — Repo dataclass with lazy-cached properties
 - `src/tsilva_maintain/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
 - `src/tsilva_maintain/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome

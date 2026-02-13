@@ -72,6 +72,11 @@ tsilva-maintain ~/repos/tsilva --rule README_EXISTS
 tsilva-maintain ~/repos/tsilva --dry-run
 tsilva-maintain ~/repos/tsilva --dry-run --json  # JSON output for CI
 
+# Commit — AI-assisted commit & push for dirty repos
+tsilva-maintain commit ~/repos/tsilva
+tsilva-maintain commit ~/repos/tsilva --filter myrepo
+tsilva-maintain commit ~/repos/tsilva --dry-run   # show dirty repos only
+
 # Report — generate reports
 tsilva-maintain report taglines ~/repos/tsilva
 tsilva-maintain report tracked-ignored ~/repos/tsilva
