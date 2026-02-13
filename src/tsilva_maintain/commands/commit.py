@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import shutil
-import subprocess
+import json
 import sys
+import urllib.request
 from pathlib import Path
 
 from tsilva_maintain import git, output
 from tsilva_maintain.repo import Repo
+
+OPENROUTER_BASE_URL = "http://127.0.0.1:8082/api"
+OPENROUTER_MODEL = "anthropic/claude-opus-4.5"
 
 
 def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
@@ -42,142 +45,113 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
     print("", file=sys.stderr)
     output.info(f"Found {len(dirty_repos)} repo(s) with uncommitted changes")
 
-    # Phase 2: Generate AI commit messages
-    has_claude = shutil.which("claude") is not None
-    messages = []
+    # Phase 2: Process each dirty repo one at a time
+    committed = 0
+    pushed = 0
+    skipped = 0
+    failed = 0
 
-    for repo, status in dirty_repos:
-        if dry_run or not has_claude:
-            messages.append("")
-            continue
+    for i, (repo, status) in enumerate(dirty_repos, 1):
+        output.header(f"[{i}/{len(dirty_repos)}] {repo.name}")
 
-        diff = git.diff_head(repo.path, max_lines=200)
+        # Show the actual diff (colorized) and untracked file contents
+        diff_colored = git.diff_head(repo.path, max_lines=200, color=True)
+        diff_plain = git.diff_head(repo.path, max_lines=200)
         untracked = git.untracked_files(repo.path)
 
-        context = f"Changes:\n{diff}"
+        if diff_colored:
+            print(diff_colored, file=sys.stderr)
+        if untracked:
+            print(f"\n{output.BOLD}New untracked files:{output.NC}", file=sys.stderr)
+            for uf in untracked.splitlines():
+                print(f"  {output.GREEN}+ {uf}{output.NC}", file=sys.stderr)
+        print("", file=sys.stderr)
+
+        if dry_run:
+            print(f"{output.DIM}(would generate AI message and prompt for approval){output.NC}", file=sys.stderr)
+            continue
+
+        # Generate AI commit message
+        context = f"Changes:\n{diff_plain}"
         if untracked:
             context += f"\n\nNew untracked files:\n{untracked}"
 
         try:
-            r = subprocess.run(
-                [
-                    "claude", "-p",
-                    "--model", "haiku",
-                    "--max-budget-usd", "0.01",
-                    "--no-session-persistence",
-                    "Generate a concise git commit message (one line, no quotes, no prefix like 'feat:') for these changes. Only output the message, nothing else.",
+            body = json.dumps({
+                "model": OPENROUTER_MODEL,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Generate a concise git commit message (one line, no quotes, no prefix like 'feat:') for these changes. Only output the message, nothing else.",
+                    },
+                    {"role": "user", "content": context},
                 ],
-                input=context,
-                capture_output=True,
-                text=True,
-                timeout=30,
+                "max_tokens": 100,
+            }).encode()
+            req = urllib.request.Request(
+                f"{OPENROUTER_BASE_URL}/v1/chat/completions",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
             )
-            msg = r.stdout.strip().replace("\n", " ").strip()
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read())
+            msg = data["choices"][0]["message"]["content"].strip().replace("\n", " ")
         except Exception:
             msg = ""
-        messages.append(msg)
 
-    # Phase 3: Interactive approval
-    approved = []
-    skipped = 0
-
-    if dry_run:
-        for (repo, status), _ in zip(dirty_repos, messages):
-            output.header(repo.name)
-            print(status, file=sys.stderr)
+        # Prompt for approval
+        if msg:
+            print(f"  {output.CYAN}{repo.name}{output.NC} → {output.BOLD}{msg}{output.NC}", file=sys.stderr)
             print("", file=sys.stderr)
-            print(f"{output.DIM}(would generate AI message and prompt for approval){output.NC}", file=sys.stderr)
-    else:
-        for (repo, status), msg in zip(dirty_repos, messages):
-            output.header(repo.name)
-            print(status, file=sys.stderr)
-            print("", file=sys.stderr)
-
-            if msg:
-                print(f"  Suggested: {output.BOLD}{msg}{output.NC}", file=sys.stderr)
-                print("", file=sys.stderr)
-                print("  [a]pprove / [e]dit / [s]kip? ", end="", file=sys.stderr, flush=True)
-                try:
-                    choice = input().strip().lower()
-                except EOFError:
-                    choice = "s"
-
-                if choice == "a":
-                    approved.append((repo, msg))
-                elif choice == "e":
-                    print("  Enter commit message: ", end="", file=sys.stderr, flush=True)
-                    try:
-                        custom = input().strip()
-                    except EOFError:
-                        custom = ""
-                    if custom:
-                        approved.append((repo, custom))
-                    else:
-                        output.skip(f"{repo.name} (empty message, skipping)")
-                        skipped += 1
-                else:
-                    output.skip(f"{repo.name} (skipped)")
-                    skipped += 1
-            else:
-                print(f"  {output.DIM}(no AI message available){output.NC}", file=sys.stderr)
-                print("", file=sys.stderr)
-                print("  [e]nter message / [s]kip? ", end="", file=sys.stderr, flush=True)
-                try:
-                    choice = input().strip().lower()
-                except EOFError:
-                    choice = "s"
-
-                if choice == "e":
-                    print("  Enter commit message: ", end="", file=sys.stderr, flush=True)
-                    try:
-                        custom = input().strip()
-                    except EOFError:
-                        custom = ""
-                    if custom:
-                        approved.append((repo, custom))
-                    else:
-                        output.skip(f"{repo.name} (empty message, skipping)")
-                        skipped += 1
-                else:
-                    output.skip(f"{repo.name} (skipped)")
-                    skipped += 1
-
-    if not approved:
-        print("", file=sys.stderr)
-        output.info("No repos approved for commit.")
-        return 0
-
-    # Phase 4: Commit & push
-    committed = 0
-    pushed = 0
-    failed = 0
-    committed_repos = []
-
-    print("", file=sys.stderr)
-    output.header("Committing approved repos...")
-
-    for repo, msg in approved:
-        if git.add_all(repo.path) and git.commit(repo.path, msg):
-            output.step(f"{repo.name} (committed)")
-            committed += 1
-            committed_repos.append(repo)
+            print("  [a]pprove / [e]dit / [s]kip / [q]uit? ", end="", file=sys.stderr, flush=True)
         else:
-            output.error(f"{repo.name} (commit failed)")
-            failed += 1
+            print(f"  {output.DIM}(no AI message available){output.NC}", file=sys.stderr)
+            print("", file=sys.stderr)
+            print("  [e]nter message / [s]kip / [q]uit? ", end="", file=sys.stderr, flush=True)
 
-    print("", file=sys.stderr)
-    output.header("Pushing committed repos...")
+        try:
+            choice = input().strip().lower()
+        except EOFError:
+            choice = "s"
 
-    for repo in committed_repos:
-        if not git.has_remote(repo.path):
-            output.warn(f"{repo.name} (no remote, skipping push)")
+        if choice == "q":
+            output.info("Quitting early.")
+            break
+
+        final_msg = None
+        if choice == "a" and msg:
+            final_msg = msg
+        elif choice == "e":
+            print("  Enter commit message: ", end="", file=sys.stderr, flush=True)
+            try:
+                custom = input().strip()
+            except EOFError:
+                custom = ""
+            if custom:
+                final_msg = custom
+
+        if final_msg is None:
+            output.skip(f"{repo.name} (skipped)")
+            skipped += 1
             continue
 
-        if git.push(repo.path):
-            output.success(f"{repo.name} (pushed)")
-            pushed += 1
+        # Commit & push immediately
+        if git.add_all(repo.path) and git.commit(repo.path, final_msg):
+            output.success(f"{repo.name} (committed)")
+            committed += 1
+
+            if git.has_remote(repo.path):
+                if git.push(repo.path):
+                    output.success(f"{repo.name} (pushed)")
+                    pushed += 1
+                else:
+                    output.error(f"{repo.name} (push failed)")
+                    failed += 1
+            else:
+                output.warn(f"{repo.name} (no remote, skipping push)")
         else:
-            output.error(f"{repo.name} (push failed)")
+            output.error(f"{repo.name} (commit failed)")
             failed += 1
 
     print("", file=sys.stderr)

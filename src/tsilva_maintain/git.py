@@ -83,8 +83,11 @@ def has_remote(repo_path: Path) -> bool:
     return r.returncode == 0
 
 
-def diff_head(repo_path: Path, max_lines: int = 200) -> str:
-    r = run_git(repo_path, "diff", "HEAD")
+def diff_head(repo_path: Path, max_lines: int = 200, color: bool = False) -> str:
+    args = ["diff", "HEAD"]
+    if color:
+        args.insert(1, "--color=always")
+    r = run_git(repo_path, *args)
     if r.returncode != 0:
         return ""
     lines = r.stdout.splitlines()[:max_lines]
