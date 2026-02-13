@@ -54,22 +54,17 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
     for i, (repo, status) in enumerate(dirty_repos, 1):
         output.header(f"[{i}/{len(dirty_repos)}] {repo.name}")
 
-        # Show the actual diff (colorized) and untracked file contents
-        diff_colored = git.diff_head(repo.path, max_lines=200, color=True)
-        diff_plain = git.diff_head(repo.path, max_lines=200)
-        untracked = git.untracked_files(repo.path)
-
-        if diff_colored:
-            print(diff_colored, file=sys.stderr)
-        if untracked:
-            print(f"\n{output.BOLD}New untracked files:{output.NC}", file=sys.stderr)
-            for uf in untracked.splitlines():
-                print(f"  {output.GREEN}+ {uf}{output.NC}", file=sys.stderr)
+        # Show file-level changes
+        print(status, file=sys.stderr)
         print("", file=sys.stderr)
 
         if dry_run:
             print(f"{output.DIM}(would generate AI message and prompt for approval){output.NC}", file=sys.stderr)
             continue
+
+        # Get full diff for AI context (not displayed)
+        diff_plain = git.diff_head(repo.path, max_lines=200)
+        untracked = git.untracked_files(repo.path)
 
         # Generate AI commit message
         context = f"Changes:\n{diff_plain}"
