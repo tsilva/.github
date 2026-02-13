@@ -2,7 +2,7 @@
 
 import re
 
-from tsilva_maintain.rules import Category, CheckResult, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, Rule, Status
 
 _PLACEHOLDERS = ["TODO", "FIXME", "Coming soon", "Work in progress", "Under construction", "[Insert", "Lorem ipsum"]
 
@@ -11,8 +11,6 @@ class ReadmeCurrentRule(Rule):
     id = "README_CURRENT"
     name = "README must be current"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.2"
-    fix_type = FixType.AI
 
     def check(self, repo):
         readme = repo.path / "README.md"

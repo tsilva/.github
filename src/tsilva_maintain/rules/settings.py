@@ -1,68 +1,54 @@
 """Claude Code settings rules (dangerous patterns, cleanliness)."""
 
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.settings_optimizer import SettingsOptimizer
+
+
+def _check_settings(repo, mode, fail_message):
+    settings_file = repo.path / ".claude" / "settings.local.json"
+    if not settings_file.is_file():
+        return CheckResult(Status.SKIP), None
+
+    optimizer = SettingsOptimizer(project_path=settings_file)
+    if not optimizer.load_settings():
+        return CheckResult(Status.SKIP), None
+
+    grouped = optimizer.analyze()
+    if optimizer.check(mode, grouped):
+        return CheckResult(Status.PASS), None
+    return CheckResult(Status.FAIL, fail_message), (optimizer, grouped)
 
 
 class SettingsDangerousRule(Rule):
     id = "SETTINGS_DANGEROUS"
     name = "No dangerous permission patterns"
     category = Category.CLAUDE
-    rule_number = "5.3"
-    fix_type = FixType.MANUAL
 
     def check(self, repo):
-        settings_file = repo.path / ".claude" / "settings.local.json"
-        if not settings_file.is_file():
-            return CheckResult(Status.SKIP)
-
-        optimizer = SettingsOptimizer(project_path=settings_file)
-        if not optimizer.load_settings():
-            return CheckResult(Status.SKIP)
-
-        grouped = optimizer.analyze()
-        if optimizer.check("dangerous", grouped):
-            return CheckResult(Status.PASS)
-        return CheckResult(Status.FAIL, "Dangerous permission patterns detected")
+        result, _ = _check_settings(repo, "dangerous", "Dangerous permission patterns detected")
+        return result
 
 
 class SettingsCleanRule(Rule):
     id = "SETTINGS_CLEAN"
     name = "Settings must be clean"
     category = Category.CLAUDE
-    rule_number = "5.4"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
-        settings_file = repo.path / ".claude" / "settings.local.json"
-        if not settings_file.is_file():
-            return CheckResult(Status.SKIP)
-
-        optimizer = SettingsOptimizer(project_path=settings_file)
-        if not optimizer.load_settings():
-            return CheckResult(Status.SKIP)
-
-        grouped = optimizer.analyze()
-        if optimizer.check("clean", grouped):
-            return CheckResult(Status.PASS)
-        return CheckResult(Status.FAIL, "Redundant permissions or unmigrated WebFetch domains")
+        result, _ = _check_settings(repo, "clean", "Redundant permissions or unmigrated WebFetch domains")
+        return result
 
     def fix(self, repo, *, dry_run=False):
-        settings_file = repo.path / ".claude" / "settings.local.json"
-        if not settings_file.is_file():
-            return FixOutcome(FixOutcome.SKIPPED, "No settings.local.json")
-
-        optimizer = SettingsOptimizer(project_path=settings_file)
-        if not optimizer.load_settings():
-            return FixOutcome(FixOutcome.SKIPPED, "No permissions found")
-
-        grouped = optimizer.analyze()
-        if optimizer.check("clean", grouped):
+        result, context = _check_settings(repo, "clean", "")
+        if result.status == Status.SKIP:
+            return FixOutcome(FixOutcome.SKIPPED, "No settings.local.json or no permissions")
+        if result.status == Status.PASS:
             return FixOutcome(FixOutcome.ALREADY_OK)
 
         if dry_run:
             return FixOutcome(FixOutcome.FIXED, "Would optimize settings")
 
+        optimizer, grouped = context
         if optimizer.auto_fix(grouped):
             return FixOutcome(FixOutcome.FIXED, "Optimized settings")
         return FixOutcome(FixOutcome.FAILED, "Failed to optimize settings")

@@ -2,7 +2,7 @@
 
 import re
 
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.rules.logo_exists import LOGO_LOCATIONS
 
 _LOGO_PATTERN_MD = re.compile(r'!\[.*\]\(\.?/?((assets|images|\.github)/)?logo\.', re.IGNORECASE)
@@ -17,8 +17,6 @@ class ReadmeLogoRule(Rule):
     id = "README_LOGO"
     name = "README must reference logo"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.6"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         readme = repo.path / "README.md"

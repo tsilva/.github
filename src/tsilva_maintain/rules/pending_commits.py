@@ -1,15 +1,13 @@
 """Rule 7.1: No pending commits."""
 
 from tsilva_maintain.git import status_porcelain, unpushed_commits
-from tsilva_maintain.rules import Category, CheckResult, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, Rule, Status
 
 
 class PendingCommitsRule(Rule):
     id = "PENDING_COMMITS"
     name = "No pending commits"
     category = Category.GIT_HYGIENE
-    rule_number = "7.1"
-    fix_type = FixType.MANUAL
 
     def check(self, repo):
         issues = []

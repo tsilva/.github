@@ -28,13 +28,11 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
 
     # Phase 1: Find dirty repos
     dirty_repos = []
-    no_changes = 0
 
     for repo in repos:
         status = git.status_porcelain(repo.path)
         if not status:
             output.success(f"{repo.name} (no changes)")
-            no_changes += 1
             continue
         dirty_repos.append((repo, status))
 

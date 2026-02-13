@@ -1,6 +1,8 @@
 """Tests for Repo dataclass."""
 
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 from tsilva_maintain.repo import Repo, parse_github_remote
 
@@ -64,3 +66,42 @@ def test_parse_github_remote_ssh():
 def test_parse_github_remote_invalid():
     assert parse_github_remote("not-a-url") is None
     assert parse_github_remote("https://gitlab.com/owner/repo") is None
+
+
+def test_is_archived_no_remote(tmp_repo):
+    repo = Repo(path=tmp_repo)
+    assert repo.is_archived is False
+
+
+def test_is_archived_gh_fails(tmp_repo):
+    repo = Repo(path=tmp_repo)
+    repo._cache["github_repo"] = "owner/repo"
+    with patch("tsilva_maintain.repo.subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="")
+        assert repo.is_archived is False
+
+
+def test_is_archived_true(tmp_repo):
+    repo = Repo(path=tmp_repo)
+    repo._cache["github_repo"] = "owner/repo"
+    with patch("tsilva_maintain.repo.subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="true\n", stderr="")
+        assert repo.is_archived is True
+
+
+def test_is_archived_gh_not_found(tmp_repo):
+    repo = Repo(path=tmp_repo)
+    repo._cache["github_repo"] = "owner/repo"
+    with patch("tsilva_maintain.repo.subprocess.run", side_effect=FileNotFoundError):
+        assert repo.is_archived is False
+
+
+def test_discover_skip_archived(repos_dir):
+    with patch.object(Repo, "is_archived", new_callable=lambda: property(lambda self: True)):
+        assert len(Repo.discover(repos_dir)) == 0
+
+
+def test_discover_skip_archived_false(repos_dir):
+    with patch.object(Repo, "is_archived", new_callable=lambda: property(lambda self: True)):
+        repos = Repo.discover(repos_dir, skip_archived=False)
+        assert len(repos) == 1

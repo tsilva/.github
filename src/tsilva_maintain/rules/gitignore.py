@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.rules._helpers import ESSENTIAL_GITIGNORE
 
 # Load full rules from gitignore.global if available
@@ -35,8 +35,6 @@ class GitignoreRule(Rule):
     id = "GITIGNORE"
     name = ".gitignore must exist with essential patterns"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.9"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         gitignore = repo.path / ".gitignore"

@@ -86,7 +86,7 @@ class SettingsOptimizer:
 
             return bool(self.global_permissions or self.project_permissions)
 
-        except (json.JSONDecodeError, Exception):
+        except Exception:
             return False
 
     def is_dangerous(self, pattern: str) -> bool:
@@ -236,9 +236,9 @@ class SettingsOptimizer:
                 pass
 
         sandbox_arg = sandbox_network if migrate else None
-        return self._save_settings(self.global_permissions, project_perms, sandbox_arg)
+        return self._save_settings(project_perms, sandbox_arg)
 
-    def _save_settings(self, global_perms: Set[str], project_perms: Set[str],
+    def _save_settings(self, project_perms: Set[str],
                        sandbox_network_allow: Optional[Set[str]] = None) -> bool:
         try:
             if self.project_path.exists():

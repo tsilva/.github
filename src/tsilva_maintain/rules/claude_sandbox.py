@@ -2,7 +2,7 @@
 
 import json
 
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 
 
 def _has_sandbox_enabled(repo_path) -> bool:
@@ -23,8 +23,6 @@ class ClaudeSandboxRule(Rule):
     id = "CLAUDE_SANDBOX"
     name = "Sandbox must be enabled"
     category = Category.CLAUDE
-    rule_number = "5.2"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         if _has_sandbox_enabled(repo.path):

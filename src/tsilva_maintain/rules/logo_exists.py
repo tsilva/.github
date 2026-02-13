@@ -1,6 +1,6 @@
 """Rule 1.5: Logo must exist."""
 
-from tsilva_maintain.rules import Category, CheckResult, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, Rule, Status
 
 LOGO_LOCATIONS = [
     "logo.png", "logo.svg", "logo.jpg",
@@ -14,8 +14,6 @@ class LogoExistsRule(Rule):
     id = "LOGO_EXISTS"
     name = "Logo must exist"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.5"
-    fix_type = FixType.AI
 
     def check(self, repo):
         for loc in LOGO_LOCATIONS:

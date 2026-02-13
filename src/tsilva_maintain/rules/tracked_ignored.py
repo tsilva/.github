@@ -1,15 +1,13 @@
 """Rule 1.11: No tracked files matching gitignore."""
 
 from tsilva_maintain.git import run_git, tracked_ignored_files
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 
 
 class TrackedIgnoredRule(Rule):
     id = "TRACKED_IGNORED"
     name = "No tracked files matching gitignore"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.11"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         files = tracked_ignored_files(repo.path)

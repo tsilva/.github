@@ -3,7 +3,7 @@
 import time
 
 from tsilva_maintain.git import branch_ages, merged_branches
-from tsilva_maintain.rules import Category, CheckResult, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, Rule, Status
 
 _90_DAYS = 90 * 86400
 
@@ -12,8 +12,6 @@ class StaleBranchesRule(Rule):
     id = "STALE_BRANCHES"
     name = "No stale branches"
     category = Category.GIT_HYGIENE
-    rule_number = "7.2"
-    fix_type = FixType.MANUAL
 
     def check(self, repo):
         issues = []

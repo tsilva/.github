@@ -3,7 +3,7 @@
 import subprocess
 from datetime import datetime
 
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.rules._helpers import has_license_file
 from tsilva_maintain.templates import load_template
 
@@ -12,8 +12,6 @@ class LicenseExistsRule(Rule):
     id = "LICENSE_EXISTS"
     name = "LICENSE must exist"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.8"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         if has_license_file(repo.path):
@@ -50,8 +48,6 @@ class ClaudeMdExistsRule(Rule):
     id = "CLAUDE_MD_EXISTS"
     name = "CLAUDE.md must exist"
     category = Category.CLAUDE
-    rule_number = "5.1"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         if (repo.path / "CLAUDE.md").is_file():

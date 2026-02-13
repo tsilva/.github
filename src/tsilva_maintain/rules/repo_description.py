@@ -1,7 +1,7 @@
 """Rule 1.12: GitHub description must match README tagline."""
 
 from tsilva_maintain.github import get_repo_description, gh_authenticated, set_repo_description
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.tagline import extract_tagline
 
 
@@ -9,8 +9,6 @@ class RepoDescriptionRule(Rule):
     id = "REPO_DESCRIPTION"
     name = "GitHub description must match README tagline"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.12"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         if not gh_authenticated():

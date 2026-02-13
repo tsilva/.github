@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
-from typing import List
-
 from tsilva_maintain.rules import Rule
 
 # Canonical order matching ALL_CHECKS in audit-repos.sh
@@ -37,7 +35,7 @@ _CANONICAL_ORDER = [
 ]
 
 
-def discover_rules() -> List[Rule]:
+def discover_rules() -> list[Rule]:
     """Import all rule modules and return instances in canonical order."""
     # Import all modules in the rules package
     package = importlib.import_module("tsilva_maintain.rules")

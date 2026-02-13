@@ -27,13 +27,6 @@ class Category(Enum):
     GIT_HYGIENE = "Git Hygiene"
 
 
-class FixType(Enum):
-    AUTO = "auto"
-    MANUAL = "manual"
-    AI = "ai"
-    NONE = "none"
-
-
 @dataclass
 class CheckResult:
     status: Status
@@ -58,8 +51,6 @@ class Rule(abc.ABC):
     id: str
     name: str
     category: Category
-    rule_number: str = ""
-    fix_type: FixType = FixType.NONE
 
     def applies_to(self, repo: Repo) -> bool:
         """Whether this rule applies to the given repo. Default: True."""

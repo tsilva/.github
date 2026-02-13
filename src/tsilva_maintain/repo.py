@@ -6,7 +6,6 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -27,7 +26,7 @@ class Repo:
         return self._cache["is_python"]
 
     @property
-    def github_repo(self) -> Optional[str]:
+    def github_repo(self) -> str | None:
         if "github_repo" not in self._cache:
             self._cache["github_repo"] = self._extract_github_repo()
         return self._cache["github_repo"]
@@ -46,6 +45,12 @@ class Repo:
         if "has_ci_workflow" not in self._cache:
             self._cache["has_ci_workflow"] = self._detect_ci_workflow()
         return self._cache["has_ci_workflow"]
+
+    @property
+    def is_archived(self) -> bool:
+        if "is_archived" not in self._cache:
+            self._cache["is_archived"] = self._check_archived()
+        return self._cache["is_archived"]
 
     @property
     def has_pyproject(self) -> bool:
@@ -73,6 +78,19 @@ class Repo:
                 continue
         return False
 
+    def _check_archived(self) -> bool:
+        gh_repo = self.github_repo
+        if not gh_repo:
+            return False
+        try:
+            result = subprocess.run(
+                ["gh", "repo", "view", gh_repo, "--json", "isArchived", "-q", ".isArchived"],
+                capture_output=True, text=True, timeout=10,
+            )
+            return result.returncode == 0 and result.stdout.strip() == "true"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
     def _detect_python(self) -> bool:
         indicators = ["setup.py", "requirements.txt", "setup.cfg", "Pipfile"]
         for f in indicators:
@@ -89,7 +107,7 @@ class Repo:
         ]
         return len(py_files) > 2
 
-    def _extract_github_repo(self) -> Optional[str]:
+    def _extract_github_repo(self) -> str | None:
         try:
             result = subprocess.run(
                 ["git", "-C", str(self.path), "remote", "get-url", "origin"],
@@ -117,7 +135,7 @@ class Repo:
             return False
 
     @staticmethod
-    def discover(repos_dir: Path, filter_pattern: str = "") -> list[Repo]:
+    def discover(repos_dir: Path, filter_pattern: str = "", skip_archived: bool = True) -> list[Repo]:
         repos = []
         if not repos_dir.is_dir():
             return repos
@@ -128,11 +146,14 @@ class Repo:
                 continue
             if filter_pattern and filter_pattern not in child.name:
                 continue
-            repos.append(Repo(path=child))
+            repo = Repo(path=child)
+            if skip_archived and repo.is_archived:
+                continue
+            repos.append(repo)
         return repos
 
 
-def parse_github_remote(url: str) -> Optional[str]:
+def parse_github_remote(url: str) -> str | None:
     """Parse owner/repo from a git remote URL (HTTPS or SSH)."""
     # SSH: git@github.com:owner/repo.git
     m = re.match(r"git@github\.com:([^/]+/[^/]+?)(?:\.git)?$", url)

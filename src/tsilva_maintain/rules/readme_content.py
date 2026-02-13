@@ -2,7 +2,7 @@
 
 import re
 
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.rules._helpers import has_license_file
 
 
@@ -18,8 +18,6 @@ class ReadmeLicenseRule(Rule):
     id = "README_LICENSE"
     name = "README must reference license"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.3"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         readme = repo.path / "README.md"
@@ -51,16 +49,11 @@ class ReadmeCiBadgeRule(Rule):
     id = "README_CI_BADGE"
     name = "README must have CI badge"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.4"
-    fix_type = FixType.NONE
 
     def applies_to(self, repo):
         return repo.has_ci_workflow
 
     def check(self, repo):
-        if not repo.has_ci_workflow:
-            return CheckResult(Status.SKIP)
-
         readme = repo.path / "README.md"
         if not readme.is_file():
             return CheckResult(Status.FAIL, "README.md does not exist")

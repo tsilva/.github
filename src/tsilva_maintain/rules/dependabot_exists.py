@@ -1,6 +1,6 @@
 """Rule 2.1: Dependabot must be configured."""
 
-from tsilva_maintain.rules import Category, CheckResult, FixOutcome, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
 
 
 def _detect_ecosystems(repo_path) -> list[str]:
@@ -29,8 +29,6 @@ class DependabotExistsRule(Rule):
     id = "DEPENDABOT_EXISTS"
     name = "Dependabot must be configured"
     category = Category.DEPENDENCY_MANAGEMENT
-    rule_number = "2.1"
-    fix_type = FixType.AUTO
 
     def check(self, repo):
         if (repo.path / ".github" / "dependabot.yml").is_file():

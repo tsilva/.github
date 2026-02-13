@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from tsilva_maintain import output
 from tsilva_maintain.repo import Repo
@@ -20,8 +20,8 @@ class RuleRunner:
         self,
         repos_dir: Path,
         filter_pattern: str = "",
-        rule_filter: Optional[str] = None,
-        category_filter: Optional[str] = None,
+        rule_filter: str | None = None,
+        category_filter: str | None = None,
     ):
         self.repos_dir = repos_dir
         self.filter_pattern = filter_pattern
@@ -56,7 +56,7 @@ class RuleRunner:
             output.banner("Repo Audit")
             output.info(f"Directory: {self.repos_dir}")
             output.info(f"Repositories: {len(repos)}")
-            print("", file=__import__("sys").stderr)
+            print("", file=sys.stderr)
 
         for repo in repos:
             repo_passed = 0
@@ -139,7 +139,6 @@ class RuleRunner:
             print(json.dumps(report, indent=2))
         else:
             output.header("Results")
-            import sys
             print(f"  Checks:    {total_passed}/{total_checks} passed ({pass_rate}%)", file=sys.stderr)
             print(f"  Passed:    {output.GREEN}{total_passed}{output.NC}", file=sys.stderr)
             print(f"  Failed:    {output.RED}{total_failed}{output.NC}", file=sys.stderr)
@@ -164,7 +163,7 @@ class RuleRunner:
         output.banner("Fix Mode" + (" (dry run)" if dry_run else ""))
         output.info(f"Directory: {self.repos_dir}")
         output.info(f"Repositories: {len(repos)}")
-        print("", file=__import__("sys").stderr)
+        print("", file=sys.stderr)
 
         for repo in repos:
             repo_actions = []
@@ -203,7 +202,6 @@ class RuleRunner:
                     else:
                         output.skip(f"{repo.name}: {rule_id} - {msg}")
 
-        import sys
         output.header("Fix Results")
         print(f"  Fixed:     {output.GREEN}{total_fixed}{output.NC}", file=sys.stderr)
         print(f"  Skipped:   {output.DIM}{total_skipped}{output.NC}", file=sys.stderr)
@@ -213,8 +211,6 @@ class RuleRunner:
 
     def maintain(self, *, dry_run: bool = False) -> int:
         """Full audit -> fix -> verify cycle."""
-        import sys
-
         output.banner("Maintain (audit -> fix -> verify)")
 
         # Phase 1: Audit

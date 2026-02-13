@@ -1,14 +1,12 @@
 """Rule 1.1: README must exist."""
 
-from tsilva_maintain.rules import Category, CheckResult, FixType, Rule, Status
+from tsilva_maintain.rules import Category, CheckResult, Rule, Status
 
 
 class ReadmeExistsRule(Rule):
     id = "README_EXISTS"
     name = "README must exist"
     category = Category.REPO_STRUCTURE
-    rule_number = "1.1"
-    fix_type = FixType.AI
 
     def check(self, repo):
         if (repo.path / "README.md").is_file():
