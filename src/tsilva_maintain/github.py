@@ -38,37 +38,38 @@ def get_repo_description(github_repo: str) -> str:
         return ""
 
 
-def get_last_run_conclusion(github_repo: str, branch: str = "main") -> str | None:
-    """Return the conclusion of the latest workflow run on *branch*.
-
-    Returns ``None`` if no completed runs exist, the run is still in
-    progress, or the ``gh`` call fails.
-    """
+def get_workflow_conclusions(github_repo: str, branch: str = "main") -> dict[str, str]:
+    """Return {workflow_name: conclusion} for latest completed run of each workflow."""
     try:
         r = subprocess.run(
             [
                 "gh", "run", "list",
                 "--repo", github_repo,
                 "--branch", branch,
-                "--limit", "1",
-                "--json", "conclusion,status",
+                "--limit", "50",
+                "--json", "workflowName,conclusion,status",
             ],
             capture_output=True,
             text=True,
             timeout=10,
         )
         if r.returncode != 0:
-            return None
+            return {}
         import json
         runs = json.loads(r.stdout)
-        if not runs:
-            return None
-        run = runs[0]
-        if run.get("status") != "completed":
-            return None
-        return run.get("conclusion") or None
-    except (subprocess.TimeoutExpired, FileNotFoundError, (ValueError, KeyError)):
-        return None
+        conclusions: dict[str, str] = {}
+        for run in runs:
+            name = run.get("workflowName")
+            if not name or name in conclusions:
+                continue
+            if run.get("status") != "completed":
+                continue
+            conclusion = run.get("conclusion")
+            if conclusion:
+                conclusions[name] = conclusion
+        return conclusions
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, KeyError):
+        return {}
 
 
 def set_repo_description(github_repo: str, description: str) -> bool:
