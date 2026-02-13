@@ -37,7 +37,7 @@ jobs:
 
       - name: Run audit
         id: audit
-        run: tsilva-maintain audit --json repos > audit-results.json || true
+        run: tsilva-maintain --check-only --json repos > audit-results.json || true
 
       - name: Generate summary
         run: |

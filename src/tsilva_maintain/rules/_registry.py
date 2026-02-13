@@ -6,28 +6,33 @@ import importlib
 import pkgutil
 from tsilva_maintain.rules import Rule
 
-# Canonical order matching ALL_CHECKS in audit-repos.sh
+# Dependency-aware ordering: foundational rules first so later rules see fixed state.
 _CANONICAL_ORDER = [
+    # Foundation: git basics
     "DEFAULT_BRANCH",
+    # Foundation: key files that other rules depend on
+    "LICENSE_EXISTS",
+    "LOGO_EXISTS",
+    "GITIGNORE",
+    "CLAUDE_MD_EXISTS",
+    "PYTHON_PYPROJECT",
+    # Dependent rules: README (depends on README_EXISTS, LICENSE_EXISTS, LOGO_EXISTS)
     "README_EXISTS",
     "README_CURRENT",
     "README_LICENSE",
     "README_LOGO",
-    "LOGO_EXISTS",
-    "LICENSE_EXISTS",
-    "GITIGNORE",
-    "CLAUDE_MD_EXISTS",
-    "CLAUDE_SANDBOX",
-    "DEPENDABOT_EXISTS",
-    "PRECOMMIT_GITLEAKS",
+    "README_CI_BADGE",
+    # Dependent rules: gitignore/claude/python
     "TRACKED_IGNORED",
-    "PENDING_COMMITS",
-    "STALE_BRANCHES",
-    "PYTHON_PYPROJECT",
-    "PYTHON_MIN_VERSION",
+    "CLAUDE_SANDBOX",
     "SETTINGS_DANGEROUS",
     "SETTINGS_CLEAN",
-    "README_CI_BADGE",
+    "PYTHON_MIN_VERSION",
+    # Independent rules
+    "DEPENDABOT_EXISTS",
+    "PRECOMMIT_GITLEAKS",
+    "PENDING_COMMITS",
+    "STALE_BRANCHES",
     "CI_WORKFLOW",
     "RELEASE_WORKFLOW",
     "PII_SCAN",

@@ -63,22 +63,16 @@ uv tool install tsilva-maintain  # global CLI
 ### Commands
 
 ```bash
-# Audit — run all 25 compliance checks
-tsilva-maintain audit ~/repos/tsilva
-tsilva-maintain audit --json ~/repos/tsilva
-tsilva-maintain audit --filter myrepo ~/repos/tsilva
-tsilva-maintain audit --rule README_EXISTS ~/repos/tsilva
-tsilva-maintain audit --category "Git Hygiene" ~/repos/tsilva
+# Default — single-pass check + fix cycle
+tsilva-maintain ~/repos/tsilva
+tsilva-maintain ~/repos/tsilva --dry-run        # preview fixes without modifying files
+tsilva-maintain ~/repos/tsilva --filter myrepo   # only repos matching pattern
 
-# Fix — auto-fix failing checks (11 rules have auto-fixes)
-tsilva-maintain fix ~/repos/tsilva
-tsilva-maintain fix --dry-run ~/repos/tsilva
-
-# Maintain — full audit → fix → verify cycle
-tsilva-maintain maintain ~/repos/tsilva
-
-# Commit — AI-assisted commit & push for dirty repos
-tsilva-maintain commit ~/repos/tsilva
+# Check-only — audit without fixing
+tsilva-maintain ~/repos/tsilva --check-only
+tsilva-maintain ~/repos/tsilva --check-only --json
+tsilva-maintain ~/repos/tsilva --check-only --rule README_EXISTS
+tsilva-maintain ~/repos/tsilva --check-only --category "Git Hygiene"
 
 # Report — generate reports
 tsilva-maintain report taglines ~/repos/tsilva

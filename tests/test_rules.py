@@ -28,7 +28,7 @@ def test_all_rules_discovered():
 def test_canonical_order():
     rules = discover_rules()
     assert rules[0].id == "DEFAULT_BRANCH"
-    assert rules[1].id == "README_EXISTS"
+    assert rules[1].id == "LICENSE_EXISTS"
     assert rules[-1].id == "REPO_DESCRIPTION"
 
 

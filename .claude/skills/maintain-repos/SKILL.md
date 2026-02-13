@@ -1,7 +1,7 @@
 ---
 name: maintain-repos
 description: Audit and remediate repos for tsilva org standardization. Run from repos parent directory.
-argument-hint: "[audit|fix|maintain|commit|report] [--filter PATTERN] <repos-dir>"
+argument-hint: "[--check-only] [--filter PATTERN] <repos-dir>"
 ---
 
 # Maintain Repos
@@ -27,76 +27,28 @@ uv tool install tsilva-maintain --from /path/to/.github
 
 | Operation | Triggers | Purpose |
 |-----------|----------|---------|
-| `audit` | "audit", "check", "scan", default | Run all 25 checks, show report |
-| `fix` | "fix", "remediate", "repair" | Apply auto-fixes for failures |
-| `maintain` | "maintain", "full" | Audit -> fix -> verify cycle |
-| `commit` | "commit", "push" | AI-assisted commit & push for dirty repos |
+| default (maintain) | no keyword, "maintain", "fix" | Single-pass check + fix cycle |
+| `--check-only` | "audit", "check", "scan" | Run all checks, show report |
 | `report` | "report", "taglines" | Generate reports |
 
 ### Operation Detection
 
 1. Check arguments for explicit keyword
-2. If no keyword: default to `audit`
+2. If no keyword: default to maintain (check + fix)
 
-## Audit
+## Maintain (Default)
 
-```bash
-tsilva-maintain audit <repos-dir>
-tsilva-maintain audit --json <repos-dir>
-tsilva-maintain audit --filter my-project <repos-dir>
-tsilva-maintain audit --rule README_EXISTS <repos-dir>
-```
-
-### Checks (25 per repo)
-
-| Check | What it detects |
-|-------|----------------|
-| DEFAULT_BRANCH | Repo has a "main" branch |
-| README_EXISTS | README.md file exists |
-| README_CURRENT | No placeholders, adequate length, has install/usage |
-| README_LICENSE | README mentions license |
-| README_LOGO | README references the project logo |
-| LOGO_EXISTS | Logo in standard locations |
-| LICENSE_EXISTS | LICENSE/LICENSE.md/LICENSE.txt exists |
-| GITIGNORE_EXISTS | .gitignore exists |
-| GITIGNORE_COMPLETE | Essential patterns present |
-| CLAUDE_MD_EXISTS | CLAUDE.md exists |
-| CLAUDE_SANDBOX | sandbox.enabled: true in .claude/settings*.json |
-| DEPENDABOT_EXISTS | .github/dependabot.yml exists |
-| PRECOMMIT_GITLEAKS | .pre-commit-config.yaml has gitleaks hook (skips .github) |
-| TRACKED_IGNORED | No tracked files matching gitignore |
-| PENDING_COMMITS | No uncommitted changes or unpushed commits |
-| STALE_BRANCHES | No merged or inactive (>90d) branches |
-| PYTHON_PYPROJECT | pyproject.toml exists (Python projects only) |
-| PYTHON_MIN_VERSION | requires-python field in pyproject.toml |
-| SETTINGS_DANGEROUS | No dangerous permission patterns (e.g. `Bash(*:*)`) |
-| SETTINGS_CLEAN | No redundant permissions or unmigrated WebFetch domains |
-| README_CI_BADGE | README has CI status badge (skips if no workflows) |
-| CI_WORKFLOW | Python repos reference test.yml/release.yml/pytest |
-| RELEASE_WORKFLOW | Versioned projects reference release.yml |
-| PII_SCAN | CI workflows include PII scanning (skips if no workflows) |
-| REPO_DESCRIPTION | GitHub description matches README tagline |
-
-## Fix
-
-### Step 1: Apply Auto-Fixes
+Single-pass check+fix: each rule is checked, and if it fails, auto-fixed and re-verified. Rules run in dependency order so later rules see the fixed state of earlier rules.
 
 ```bash
-tsilva-maintain fix <repos-dir>
-tsilva-maintain fix --dry-run <repos-dir>
+tsilva-maintain <repos-dir>
+tsilva-maintain --dry-run <repos-dir>
+tsilva-maintain --filter my-project <repos-dir>
 ```
 
-Auto-fixes cover 11 rules: LICENSE, CLAUDE.md, sandbox, dependabot, gitignore, pre-commit, README license/logo sections, settings cleanup, repo descriptions.
+### Post-Fix: Handle Remaining Failures
 
-### Step 2: Re-audit to Find Remaining Failures
-
-```bash
-tsilva-maintain audit --json <repos-dir>
-```
-
-### Step 3: Fix Remaining Issues (AI-dependent)
-
-Process remaining failures per repo. For each repo with failures:
+After running `tsilva-maintain`, check output for remaining manual issues. For each repo with failures:
 
 1. `cd` into the repo directory
 2. For **README** failures (README_EXISTS, README_CURRENT):
@@ -114,29 +66,49 @@ Process remaining failures per repo. For each repo with failures:
 8. For **PENDING_COMMITS**: list the uncommitted changes and unpushed commits, suggest user review and commit/push — do NOT auto-commit
 9. For **STALE_BRANCHES**: list branches, suggest `git branch -d <branch>` for merged branches — do NOT auto-delete
 
-### Step 4: Final Audit
+### Final Verification
 
 ```bash
-tsilva-maintain audit <repos-dir>
+tsilva-maintain --check-only <repos-dir>
 ```
 
-## Maintain (One-Command Flow)
-
-Full audit -> fix -> verify cycle:
+## Check-Only (Audit)
 
 ```bash
-tsilva-maintain maintain <repos-dir>
-tsilva-maintain maintain --dry-run <repos-dir>
+tsilva-maintain --check-only <repos-dir>
+tsilva-maintain --check-only --json <repos-dir>
+tsilva-maintain --check-only --filter my-project <repos-dir>
+tsilva-maintain --check-only --rule README_EXISTS <repos-dir>
 ```
 
-## Commit
+### Checks (24 per repo)
 
-AI-assisted commit & push for repos with uncommitted changes:
-
-```bash
-tsilva-maintain commit <repos-dir>
-tsilva-maintain commit --dry-run <repos-dir>
-```
+| Check | What it detects |
+|-------|----------------|
+| DEFAULT_BRANCH | Repo has a "main" branch |
+| LICENSE_EXISTS | LICENSE/LICENSE.md/LICENSE.txt exists |
+| LOGO_EXISTS | Logo in standard locations |
+| GITIGNORE | .gitignore exists with essential patterns |
+| CLAUDE_MD_EXISTS | CLAUDE.md exists |
+| PYTHON_PYPROJECT | pyproject.toml exists (Python projects only) |
+| README_EXISTS | README.md file exists |
+| README_CURRENT | No placeholders, adequate length, has install/usage |
+| README_LICENSE | README mentions license |
+| README_LOGO | README references the project logo |
+| README_CI_BADGE | README has CI status badge (skips if no workflows) |
+| TRACKED_IGNORED | No tracked files matching gitignore |
+| CLAUDE_SANDBOX | sandbox.enabled: true in .claude/settings*.json |
+| SETTINGS_DANGEROUS | No dangerous permission patterns (e.g. `Bash(*:*)`) |
+| SETTINGS_CLEAN | No redundant permissions or unmigrated WebFetch domains |
+| PYTHON_MIN_VERSION | requires-python field in pyproject.toml |
+| DEPENDABOT_EXISTS | .github/dependabot.yml exists |
+| PRECOMMIT_GITLEAKS | .pre-commit-config.yaml has gitleaks hook (skips .github) |
+| PENDING_COMMITS | No uncommitted changes or unpushed commits |
+| STALE_BRANCHES | No merged or inactive (>90d) branches |
+| CI_WORKFLOW | Python repos reference test.yml/release.yml/pytest |
+| RELEASE_WORKFLOW | Versioned projects reference release.yml |
+| PII_SCAN | CI workflows include PII scanning (skips if no workflows) |
+| REPO_DESCRIPTION | GitHub description matches README tagline |
 
 ## Report
 
@@ -150,16 +122,15 @@ tsilva-maintain report tracked-ignored <repos-dir>
 All operations support `--filter PATTERN` to limit to repos matching a name pattern:
 
 ```bash
-tsilva-maintain audit --filter my-project <repos-dir>
+tsilva-maintain --filter my-project <repos-dir>
 ```
 
 ## Usage Examples
 
 ```
-/maintain-repos audit ~/repos/tsilva
-/maintain-repos fix ~/repos/tsilva
-/maintain-repos fix --filter my-project ~/repos/tsilva
-/maintain-repos maintain ~/repos/tsilva
-/maintain-repos commit ~/repos/tsilva
+/maintain-repos ~/repos/tsilva
+/maintain-repos --check-only ~/repos/tsilva
+/maintain-repos --dry-run ~/repos/tsilva
+/maintain-repos --filter my-project ~/repos/tsilva
 /maintain-repos report taglines ~/repos/tsilva
 ```

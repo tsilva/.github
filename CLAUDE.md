@@ -14,7 +14,7 @@ Modular reusable workflows triggered via `workflow_call`. Each workflow handles 
 
 The primary maintenance tool. A Python package in `src/tsilva_maintain/` installable via `uv tool install` or `uv pip install -e .`. Each compliance rule is a self-contained class in `src/tsilva_maintain/rules/` with `check()` and `fix()` methods, auto-discovered via `pkgutil`.
 
-Commands: `tsilva-maintain audit|fix|maintain|commit|report`
+Commands: `tsilva-maintain [repos-dir]` (default: check+fix), `tsilva-maintain --check-only`, `tsilva-maintain report`
 
 ### Scripts
 
@@ -65,7 +65,7 @@ Composes `test.yml` + `pii-scan.yml` in parallel for PR-time checks. Caller repo
 
 ### `audit.yml`
 
-Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `tsilva-maintain audit --json`, posts results to GitHub Step Summary, uploads JSON artifact.
+Scheduled compliance audit of all org repos. Runs weekly (Monday 08:00 UTC) + on-demand via `workflow_dispatch`. Clones all non-archived repos, runs `tsilva-maintain --check-only --json`, posts results to GitHub Step Summary, uploads JSON artifact.
 
 ### `release.yml` (composer)
 
@@ -115,21 +115,20 @@ uv tool install tsilva-maintain  # global CLI
 ### Commands
 
 ```
-tsilva-maintain audit <repos-dir> [--filter PAT] [--json] [--rule ID] [--category CAT]
-tsilva-maintain fix <repos-dir> [--filter PAT] [--dry-run] [--rule ID]
-tsilva-maintain maintain <repos-dir> [--filter PAT] [--dry-run]
-tsilva-maintain commit <repos-dir> [--filter PAT] [--dry-run]
-tsilva-maintain report taglines|tracked-ignored <repos-dir> [--filter PAT]
+tsilva-maintain [repos-dir] [-f PAT] [-c|--check-only] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
+tsilva-maintain report taglines|tracked-ignored [repos-dir] [-f PAT]
 ```
+
+Running with no flags performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Use `--check-only` to audit without fixing. Use `--dry-run` to preview fixes without modifying files.
 
 ### Package Structure
 
 - `src/tsilva_maintain/cli.py` — argparse entry point
-- `src/tsilva_maintain/engine.py` — RuleRunner: discover → check → fix → report
+- `src/tsilva_maintain/engine.py` — RuleRunner: single-pass check → fix → verify per rule
 - `src/tsilva_maintain/repo.py` — Repo dataclass with lazy-cached properties
 - `src/tsilva_maintain/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
 - `src/tsilva_maintain/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
-- `src/tsilva_maintain/rules/_registry.py` — auto-discovery + canonical ordering
+- `src/tsilva_maintain/rules/_registry.py` — auto-discovery + dependency-aware ordering
 - `src/tsilva_maintain/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
 - `src/tsilva_maintain/tagline.py` — README tagline extractor (from `scripts/lib/extract_tagline.py`)
 - `src/tsilva_maintain/templates/` — LICENSE, CLAUDE.md, dependabot.yml, pre-commit-config.yaml

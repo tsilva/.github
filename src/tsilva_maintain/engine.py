@@ -1,9 +1,10 @@
-"""RuleRunner: discover -> check -> fix -> report."""
+"""RuleRunner: single-pass check-and-fix engine."""
 
 from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,8 +14,46 @@ from tsilva_maintain.rules import CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.rules._registry import discover_rules
 
 
+@dataclass
+class RuleResult:
+    """Outcome for a single rule on a single repo."""
+
+    rule_id: str
+    status: str  # "pass", "skip", "fixed", "fix_failed", "manual", "failed"
+    message: str = ""
+
+
+@dataclass
+class RepoResult:
+    """Aggregated results for a single repo."""
+
+    name: str
+    path: str
+    results: list[RuleResult] = field(default_factory=list)
+
+    @property
+    def total(self) -> int:
+        return len(self.results)
+
+    @property
+    def passed(self) -> int:
+        return sum(1 for r in self.results if r.status in ("pass", "skip"))
+
+    @property
+    def fixed(self) -> int:
+        return sum(1 for r in self.results if r.status == "fixed")
+
+    @property
+    def manual(self) -> list[RuleResult]:
+        return [r for r in self.results if r.status in ("manual", "failed", "fix_failed")]
+
+    @property
+    def all_ok(self) -> bool:
+        return len(self.manual) == 0
+
+
 class RuleRunner:
-    """Orchestrates rule discovery, audit, fix, and maintain flows."""
+    """Single-pass engine: check each rule, fix if needed, verify."""
 
     def __init__(
         self,
@@ -38,192 +77,176 @@ class RuleRunner:
             rules = [r for r in rules if r.category.name == cat_upper]
         return rules
 
-    def audit(self, *, json_output: bool = False) -> int:
+    def run(
+        self,
+        *,
+        check_only: bool = False,
+        dry_run: bool = False,
+        json_output: bool = False,
+    ) -> int:
+        """Single-pass: for each repo, check each rule and optionally fix."""
         repos = Repo.discover(self.repos_dir, self.filter_pattern)
         rules = self._filter_rules()
 
         if not repos:
-            output.info("No git repositories found.")
-            return 0
-
-        total_passed = 0
-        total_failed = 0
-        total_skipped = 0
-
-        json_repos = []
-
-        if not json_output:
-            output.banner("Repo Audit")
-            output.info(f"Directory: {self.repos_dir}")
-            output.info(f"Repositories: {len(repos)}")
-            print("", file=sys.stderr)
-
-        for repo in repos:
-            repo_passed = 0
-            repo_failed = 0
-            repo_skipped = 0
-            failed_checks = []
-            json_checks = []
-
-            for rule in rules:
-                if not rule.applies_to(repo):
-                    result = CheckResult(Status.SKIP)
-                else:
-                    result = rule.check(repo)
-
-                if result.status == Status.PASS:
-                    repo_passed += 1
-                    status_str = "passed"
-                elif result.status == Status.SKIP:
-                    repo_skipped += 1
-                    repo_passed += 1  # Skips count as passed
-                    status_str = "skipped"
-                else:
-                    repo_failed += 1
-                    status_str = "failed"
-                    failed_checks.append((rule.id, result.message))
-
-                if json_output:
-                    json_checks.append({
-                        "check": rule.id,
-                        "status": status_str,
-                        "message": result.message,
-                    })
-
-            total_passed += repo_passed
-            total_failed += repo_failed
-            total_skipped += repo_skipped
-
             if not json_output:
-                if repo_failed == 0:
-                    output.success(f"{repo.name} ({repo_passed}/{repo_passed} passed)")
-                else:
-                    output.error(f"{repo.name} ({repo_failed} failed)")
-                    for check_id, msg in failed_checks:
-                        output.detail(f"{output.RED}{check_id}{output.NC}: {msg}")
-
-            if json_output:
-                json_repos.append({
-                    "repo": repo.name,
-                    "path": str(repo.path),
-                    "checks": json_checks,
-                    "summary": {
-                        "passed": repo_passed,
-                        "failed": repo_failed,
-                        "skipped": repo_skipped,
-                    },
-                })
-
-        total_checks = total_passed + total_failed
-        pass_rate = round(total_passed * 100 / total_checks) if total_checks > 0 else 0
-
-        if json_output:
-            # Detect GitHub user from first repo
-            github_user = ""
-            if repos and repos[0].github_repo:
-                github_user = repos[0].github_repo.split("/")[0]
-
-            report = {
-                "audit_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "repos_dir": str(self.repos_dir),
-                "github_user": github_user,
-                "repos_count": len(repos),
-                "repos": json_repos,
-                "summary": {
-                    "total_checks": total_checks,
-                    "passed": total_passed,
-                    "failed": total_failed,
-                    "pass_rate": pass_rate,
-                },
-            }
-            print(json.dumps(report, indent=2))
-        else:
-            output.header("Results")
-            print(f"  Checks:    {total_passed}/{total_checks} passed ({pass_rate}%)", file=sys.stderr)
-            print(f"  Passed:    {output.GREEN}{total_passed}{output.NC}", file=sys.stderr)
-            print(f"  Failed:    {output.RED}{total_failed}{output.NC}", file=sys.stderr)
-            if total_skipped > 0:
-                print(f"  Skipped:   {output.DIM}{total_skipped}{output.NC}", file=sys.stderr)
-
-        return 1 if total_failed > 0 else 0
-
-    def fix(self, *, dry_run: bool = False) -> int:
-        repos = Repo.discover(self.repos_dir, self.filter_pattern)
-        rules = self._filter_rules()
-
-        if not repos:
-            output.info("No git repositories found.")
+                output.info("No git repositories found.")
             return 0
 
-        total_fixed = 0
-        total_already_ok = 0
-        total_skipped = 0
-        total_failed = 0
-
-        output.banner("Fix Mode" + (" (dry run)" if dry_run else ""))
-        output.info(f"Directory: {self.repos_dir}")
-        output.info(f"Repositories: {len(repos)}")
-        print("", file=sys.stderr)
+        repo_results: list[RepoResult] = []
 
         for repo in repos:
-            repo_actions = []
+            rr = RepoResult(name=repo.name, path=str(repo.path))
 
             for rule in rules:
                 if not rule.applies_to(repo):
+                    rr.results.append(RuleResult(rule.id, "skip"))
                     continue
 
                 result = rule.check(repo)
-                if result.status != Status.FAIL:
+
+                if result.status == Status.PASS:
+                    rr.results.append(RuleResult(rule.id, "pass"))
                     continue
 
+                if result.status == Status.SKIP:
+                    rr.results.append(RuleResult(rule.id, "skip"))
+                    continue
+
+                # Rule failed
+                if check_only:
+                    rr.results.append(RuleResult(rule.id, "failed", result.message))
+                    continue
+
+                # Attempt fix
                 outcome = rule.fix(repo, dry_run=dry_run)
 
                 if outcome.status == FixOutcome.FIXED:
-                    total_fixed += 1
-                    repo_actions.append((rule.id, "fixed", outcome.message))
-                elif outcome.status == FixOutcome.ALREADY_OK:
-                    total_already_ok += 1
-                elif outcome.status == FixOutcome.SKIPPED:
-                    total_skipped += 1
-                    repo_actions.append((rule.id, "skipped", outcome.message))
-                elif outcome.status == FixOutcome.MANUAL:
-                    total_skipped += 1
-                    repo_actions.append((rule.id, "manual", outcome.message))
-                else:
-                    total_failed += 1
-                    repo_actions.append((rule.id, "failed", outcome.message))
-
-            if repo_actions:
-                for rule_id, status, msg in repo_actions:
-                    if status == "fixed":
-                        output.step(f"{repo.name}: {rule_id} - {msg}")
-                    elif status == "failed":
-                        output.error(f"{repo.name}: {rule_id} - {msg}")
+                    # Re-check to verify the fix worked
+                    verify = rule.check(repo)
+                    if verify.status == Status.PASS:
+                        rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
                     else:
-                        output.skip(f"{repo.name}: {rule_id} - {msg}")
+                        rr.results.append(RuleResult(rule.id, "fix_failed", verify.message))
+                elif outcome.status == FixOutcome.ALREADY_OK:
+                    rr.results.append(RuleResult(rule.id, "pass"))
+                elif outcome.status == FixOutcome.MANUAL:
+                    rr.results.append(RuleResult(rule.id, "manual", result.message))
+                elif outcome.status == FixOutcome.SKIPPED:
+                    rr.results.append(RuleResult(rule.id, "manual", outcome.message))
+                else:
+                    rr.results.append(RuleResult(rule.id, "failed", outcome.message))
 
-        output.header("Fix Results")
-        print(f"  Fixed:     {output.GREEN}{total_fixed}{output.NC}", file=sys.stderr)
-        print(f"  Skipped:   {output.DIM}{total_skipped}{output.NC}", file=sys.stderr)
-        print(f"  Failed:    {output.RED}{total_failed}{output.NC}", file=sys.stderr)
+            repo_results.append(rr)
+
+        if json_output:
+            return self._output_json(repos, repo_results)
+
+        return self._output_summary(repo_results, check_only=check_only, dry_run=dry_run)
+
+    def _output_summary(
+        self,
+        repo_results: list[RepoResult],
+        *,
+        check_only: bool,
+        dry_run: bool,
+    ) -> int:
+        """Print compact per-repo summary with expanded details for failures."""
+        mode = "Check" if check_only else ("Maintain (dry run)" if dry_run else "Maintain")
+        output.banner(mode)
+        output.info(f"Directory: {self.repos_dir}")
+        output.info(f"Repositories: {len(repo_results)}")
+        print("", file=sys.stderr)
+
+        all_passing = 0
+        needed_fixes = 0
+        needs_work = 0
+
+        for rr in repo_results:
+            fixed = rr.fixed
+            manual = rr.manual
+            passed = rr.passed
+            total = rr.total
+
+            if manual:
+                needs_work += 1
+                parts = [f"{passed}/{total} passed"]
+                if fixed:
+                    parts.append(f"{fixed} fixed")
+                parts.append(f"{len(manual)} manual")
+                output.error(f"{rr.name:<28} {', '.join(parts)}")
+                for m in manual:
+                    output.detail(f"{output.RED}{m.rule_id}{output.NC}: {m.message}")
+            elif fixed:
+                needed_fixes += 1
+                output.success(f"{rr.name:<28} {passed}/{total} passed ({fixed} fixed)")
+            else:
+                all_passing += 1
+                output.success(f"{rr.name:<28} {total}/{total} passed")
+
+        # Summary footer
+        output.header("Results")
+        print(f"  Repos:        {len(repo_results)}", file=sys.stderr)
+        print(f"  All passing:  {output.GREEN}{all_passing}{output.NC}", file=sys.stderr)
+        if needed_fixes:
+            print(f"  Needed fixes: {output.YELLOW}{needed_fixes}{output.NC} (all auto-fixed)", file=sys.stderr)
+        if needs_work:
+            print(f"  Needs work:   {output.RED}{needs_work}{output.NC} (have remaining manual issues)", file=sys.stderr)
+
+        return 1 if needs_work > 0 else 0
+
+    def _output_json(self, repos: list[Repo], repo_results: list[RepoResult]) -> int:
+        """Output JSON report to stdout."""
+        github_user = ""
+        if repos and repos[0].github_repo:
+            github_user = repos[0].github_repo.split("/")[0]
+
+        total_checks = 0
+        total_passed = 0
+        total_failed = 0
+        json_repos = []
+
+        for rr in repo_results:
+            checks = []
+            for r in rr.results:
+                if r.status in ("pass", "skip", "fixed"):
+                    status_str = "passed" if r.status != "fixed" else "fixed"
+                    total_passed += 1
+                else:
+                    status_str = "failed"
+                    total_failed += 1
+                total_checks += 1
+                checks.append({
+                    "check": r.rule_id,
+                    "status": status_str,
+                    "message": r.message,
+                })
+
+            json_repos.append({
+                "repo": rr.name,
+                "path": rr.path,
+                "checks": checks,
+                "summary": {
+                    "passed": rr.passed + rr.fixed,
+                    "failed": len(rr.manual),
+                },
+            })
+
+        pass_rate = round(total_passed * 100 / total_checks) if total_checks > 0 else 0
+
+        report = {
+            "audit_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "repos_dir": str(self.repos_dir),
+            "github_user": github_user,
+            "repos_count": len(repo_results),
+            "repos": json_repos,
+            "summary": {
+                "total_checks": total_checks,
+                "passed": total_passed,
+                "failed": total_failed,
+                "pass_rate": pass_rate,
+            },
+        }
+        print(json.dumps(report, indent=2))
 
         return 1 if total_failed > 0 else 0
-
-    def maintain(self, *, dry_run: bool = False) -> int:
-        """Full audit -> fix -> verify cycle."""
-        output.banner("Maintain (audit -> fix -> verify)")
-
-        # Phase 1: Audit
-        output.header("Phase 1: Audit")
-        print("", file=sys.stderr)
-        self.audit()
-
-        # Phase 2: Fix
-        output.header("Phase 2: Fix")
-        print("", file=sys.stderr)
-        self.fix(dry_run=dry_run)
-
-        # Phase 3: Verify
-        output.header("Phase 3: Verify")
-        print("", file=sys.stderr)
-        return self.audit()

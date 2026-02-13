@@ -13,6 +13,8 @@ _REPOS_DIR_HELP = (
     f"(default: ${_REPOS_DIR_ENV} env var)"
 )
 
+_SUBCOMMANDS = {"report"}
+
 
 def _resolve_repos_dir(args: argparse.Namespace) -> None:
     """Fill args.repos_dir from env var when not given on the command line."""
@@ -29,76 +31,75 @@ def _resolve_repos_dir(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
-def main(argv: list[str] | None = None) -> None:
+def _build_maintain_parser() -> argparse.ArgumentParser:
+    """Build parser for the default maintain command."""
     parser = argparse.ArgumentParser(
         prog="tsilva-maintain",
         description="Compliance audit and maintenance CLI for the tsilva GitHub organization",
     )
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
+    parser.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
+    parser.add_argument("-c", "--check-only", dest="check_only", action="store_true", help="Audit without fixing")
+    parser.add_argument("-j", "--json", dest="json_output", action="store_true", help="Output JSON report to stdout")
+    parser.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show what would be done without executing")
+    parser.add_argument("--rule", dest="rule_filter", default=None, help="Run only this rule ID")
+    parser.add_argument("--category", dest="category_filter", default=None, help="Run only rules in this category")
+    return parser
 
-    # --- audit ---
-    p_audit = sub.add_parser("audit", help="Run compliance audit on repos")
-    p_audit.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
-    p_audit.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
-    p_audit.add_argument("-j", "--json", dest="json_output", action="store_true", help="Output JSON report to stdout")
-    p_audit.add_argument("--rule", dest="rule_filter", default=None, help="Run only this rule ID")
-    p_audit.add_argument("--category", dest="category_filter", default=None, help="Run only rules in this category")
 
-    # --- fix ---
-    p_fix = sub.add_parser("fix", help="Auto-fix failing compliance checks")
-    p_fix.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
-    p_fix.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
-    p_fix.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show what would be done without executing")
-    p_fix.add_argument("--rule", dest="rule_filter", default=None, help="Fix only this rule ID")
+def _build_report_parser() -> argparse.ArgumentParser:
+    """Build parser for the report subcommand."""
+    parser = argparse.ArgumentParser(
+        prog="tsilva-maintain report",
+        description="Generate reports",
+    )
+    parser.add_argument("report_type", choices=["taglines", "tracked-ignored"], help="Report type")
+    parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
+    parser.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
+    return parser
 
-    # --- maintain ---
-    p_maintain = sub.add_parser("maintain", help="Full audit -> fix -> verify cycle")
-    p_maintain.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
-    p_maintain.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
-    p_maintain.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show what would be done without executing")
 
-    # --- commit ---
-    p_commit = sub.add_parser("commit", help="AI-assisted commit & push for dirty repos")
-    p_commit.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
-    p_commit.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
-    p_commit.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show dirty repos without committing")
+def main(argv: list[str] | None = None) -> None:
+    if argv is None:
+        argv = sys.argv[1:]
 
-    # --- report ---
-    p_report = sub.add_parser("report", help="Generate reports")
-    p_report.add_argument("report_type", choices=["taglines", "tracked-ignored"], help="Report type")
-    p_report.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
-    p_report.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
+    # Route to subcommand if first arg matches
+    if argv and argv[0] in _SUBCOMMANDS:
+        command = argv[0]
+        rest = argv[1:]
 
-    args = parser.parse_args(argv)
-    _resolve_repos_dir(args)
+        if command == "report":
+            parser = _build_report_parser()
+            args = parser.parse_args(rest)
+            _resolve_repos_dir(args)
 
-    if not args.repos_dir.is_dir():
-        print(f"Error: Directory does not exist: {args.repos_dir}", file=sys.stderr)
-        sys.exit(1)
+            if not args.repos_dir.is_dir():
+                print(f"Error: Directory does not exist: {args.repos_dir}", file=sys.stderr)
+                sys.exit(1)
 
-    if args.command in ("audit", "fix", "maintain"):
+            from tsilva_maintain.commands.report import run_report
+
+            sys.exit(run_report(args.report_type, args.repos_dir, args.filter_pattern))
+    else:
+        # Default: maintain (single-pass check+fix)
+        parser = _build_maintain_parser()
+        args = parser.parse_args(argv)
+        _resolve_repos_dir(args)
+
+        if not args.repos_dir.is_dir():
+            print(f"Error: Directory does not exist: {args.repos_dir}", file=sys.stderr)
+            sys.exit(1)
+
         from tsilva_maintain.engine import RuleRunner
 
         runner = RuleRunner(
             repos_dir=args.repos_dir,
             filter_pattern=args.filter_pattern,
-            rule_filter=getattr(args, "rule_filter", None),
-            category_filter=getattr(args, "category_filter", None),
+            rule_filter=args.rule_filter,
+            category_filter=args.category_filter,
         )
-
-        if args.command == "audit":
-            sys.exit(runner.audit(json_output=args.json_output))
-        elif args.command == "fix":
-            sys.exit(runner.fix(dry_run=args.dry_run))
-        elif args.command == "maintain":
-            sys.exit(runner.maintain(dry_run=args.dry_run))
-
-    elif args.command == "commit":
-        from tsilva_maintain.commands.commit import run_commit
-
-        sys.exit(run_commit(args.repos_dir, args.filter_pattern, args.dry_run))
-
-    elif args.command == "report":
-        from tsilva_maintain.commands.report import run_report
-
-        sys.exit(run_report(args.report_type, args.repos_dir, args.filter_pattern))
+        sys.exit(runner.run(
+            check_only=args.check_only,
+            dry_run=args.dry_run,
+            json_output=args.json_output,
+        ))
