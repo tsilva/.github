@@ -6,17 +6,15 @@ from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Statu
 
 
 def _has_sandbox_enabled(repo_path) -> bool:
-    for name in ("settings.json", "settings.local.json"):
-        settings_file = repo_path / ".claude" / name
-        if settings_file.is_file():
-            try:
-                data = json.loads(settings_file.read_text(encoding="utf-8"))
-                sandbox = data.get("sandbox", {})
-                if isinstance(sandbox, dict) and sandbox.get("enabled") is True:
-                    return True
-            except Exception:
-                continue
-    return False
+    settings_file = repo_path / ".claude" / "settings.local.json"
+    if not settings_file.is_file():
+        return False
+    try:
+        data = json.loads(settings_file.read_text(encoding="utf-8"))
+        sandbox = data.get("sandbox", {})
+        return isinstance(sandbox, dict) and sandbox.get("enabled") is True
+    except Exception:
+        return False
 
 
 class ClaudeSandboxRule(Rule):
@@ -39,7 +37,7 @@ class ClaudeSandboxRule(Rule):
         try:
             claude_dir = repo.path / ".claude"
             claude_dir.mkdir(parents=True, exist_ok=True)
-            settings_file = claude_dir / "settings.json"
+            settings_file = claude_dir / "settings.local.json"
 
             if settings_file.is_file():
                 try:
@@ -50,7 +48,10 @@ class ClaudeSandboxRule(Rule):
                     data["sandbox"] = {}
                 data["sandbox"]["enabled"] = True
             else:
-                data = {"sandbox": {"enabled": True}}
+                data = {
+                    "sandbox": {"enabled": True},
+                    "permissions": {"allow": [], "deny": []},
+                }
 
             settings_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             return FixOutcome(FixOutcome.FIXED, "Enabled sandbox")

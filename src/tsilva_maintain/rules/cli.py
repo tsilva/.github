@@ -1,5 +1,7 @@
-"""CLI project rules (build backend, versioning, release workflow, PyPI metadata)."""
+"""CLI project rules (build backend, versioning, release workflow, PyPI metadata, editable install)."""
 
+import importlib.metadata
+import json
 import re
 
 from tsilva_maintain.rules import Category, CheckResult, FixOutcome, Rule, Status
@@ -136,3 +138,41 @@ class CliPypiReadyRule(Rule):
             )
         except Exception as e:
             return CheckResult(Status.FAIL, f"Cannot read pyproject.toml: {e}")
+
+
+class CliEditableInstallRule(Rule):
+    id = "CLI_EDITABLE_INSTALL"
+    name = "CLI projects must be installed in editable mode"
+    category = Category.PYTHON
+
+    def applies_to(self, repo):
+        return repo.is_cli
+
+    def check(self, repo):
+        pkg = repo.package_name
+        if not pkg:
+            return CheckResult(Status.SKIP, "No package name in pyproject.toml")
+
+        try:
+            dist = importlib.metadata.distribution(pkg)
+        except importlib.metadata.PackageNotFoundError:
+            return CheckResult(Status.FAIL, f"Package {pkg!r} is not installed")
+
+        # Check direct_url.json for editable marker
+        try:
+            direct_url_text = dist.read_text("direct_url.json")
+            if direct_url_text:
+                direct_url = json.loads(direct_url_text)
+                if direct_url.get("dir_info", {}).get("editable") is True:
+                    return CheckResult(Status.PASS)
+                return CheckResult(
+                    Status.FAIL,
+                    f"Package {pkg!r} is installed but not in editable mode",
+                )
+        except Exception:
+            pass
+
+        return CheckResult(
+            Status.FAIL,
+            f"Package {pkg!r} is installed but not in editable mode",
+        )

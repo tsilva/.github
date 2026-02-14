@@ -28,10 +28,10 @@ def tmp_repo(tmp_path: Path) -> Path:
     (repo / "CLAUDE.md").write_text("# CLAUDE.md\n\n## Project: test-repo\n")
     (repo / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n")  # minimal PNG header
 
-    # Create .claude/settings.json with sandbox
+    # Create .claude/settings.local.json with sandbox
     claude_dir = repo / ".claude"
     claude_dir.mkdir()
-    (claude_dir / "settings.json").write_text('{\n  "sandbox": {\n    "enabled": true\n  }\n}\n')
+    (claude_dir / "settings.local.json").write_text('{\n  "sandbox": {\n    "enabled": true\n  },\n  "permissions": {\n    "allow": [],\n    "deny": []\n  }\n}\n')
 
     # Create .github/dependabot.yml
     gh_dir = repo / ".github"

@@ -82,11 +82,31 @@ class Repo:
         return self._cache["cli_scripts"]
 
     @property
+    def package_name(self) -> str | None:
+        """Return [project] name from pyproject.toml, or None."""
+        if "package_name" not in self._cache:
+            self._cache["package_name"] = self._parse_package_name()
+        return self._cache["package_name"]
+
+    @property
     def has_version(self) -> bool:
         """Check if pyproject.toml has a static or dynamic version."""
         if "has_version" not in self._cache:
             self._cache["has_version"] = self._check_version()
         return self._cache["has_version"]
+
+    def _parse_package_name(self) -> str | None:
+        pyproject = self.path / "pyproject.toml"
+        if not pyproject.is_file():
+            return None
+        try:
+            import tomllib
+
+            with open(pyproject, "rb") as f:
+                data = tomllib.load(f)
+            return data.get("project", {}).get("name") or None
+        except Exception:
+            return None
 
     def _parse_cli_scripts(self) -> dict[str, str]:
         pyproject = self.path / "pyproject.toml"

@@ -21,6 +21,8 @@ def test_all_rules_discovered():
         "PYTHON_MIN_VERSION", "SETTINGS_DANGEROUS", "SETTINGS_CLEAN",
         "README_CI_BADGE", "CI_WORKFLOW", "WORKFLOWS_PASSING", "RELEASE_WORKFLOW",
         "PII_SCAN", "REPO_DESCRIPTION",
+        "CLI_VERSION", "CLI_PYPI_READY", "CLI_RELEASE_WORKFLOW", "CLI_BUILD_BACKEND",
+        "CLI_EDITABLE_INSTALL",
     }
     assert rule_ids == expected
 
@@ -149,8 +151,9 @@ def test_sandbox_fix(bare_repo):
     outcome = rule.fix(repo)
     assert outcome.status == "fixed"
 
-    settings = json.loads((bare_repo / ".claude" / "settings.json").read_text())
+    settings = json.loads((bare_repo / ".claude" / "settings.local.json").read_text())
     assert settings["sandbox"]["enabled"] is True
+    assert settings["permissions"] == {"allow": [], "deny": []}
 
 
 def test_dependabot_fix(bare_repo):
