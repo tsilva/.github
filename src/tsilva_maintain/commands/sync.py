@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from tsilva_maintain import git, output
@@ -55,44 +57,59 @@ def run_sync(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
     print("", file=sys.stderr)
 
     errors = 0
+    errors_lock = threading.Lock()
+
+    def _clone_one(name: str) -> None:
+        nonlocal errors
+        target = repos_dir / name
+        try:
+            r = git.clone_repo(f"tsilva/{name}", target)
+            if r.returncode == 0:
+                output.success(f"{name} (cloned)")
+            else:
+                output.error(f"{name} (clone failed: {r.stderr.strip()})")
+                with errors_lock:
+                    errors += 1
+        except Exception as e:
+            output.error(f"{name} (clone failed: {e})")
+            with errors_lock:
+                errors += 1
+
+    def _fetch_one(name: str) -> None:
+        nonlocal errors
+        repo_path = repos_dir / name
+        try:
+            r = git.fetch_all(repo_path)
+            if r.returncode == 0:
+                output.success(f"{name} (fetched)")
+            else:
+                output.error(f"{name} (fetch failed: {r.stderr.strip()})")
+                with errors_lock:
+                    errors += 1
+        except Exception as e:
+            output.error(f"{name} (fetch failed: {e})")
+            with errors_lock:
+                errors += 1
 
     # Clone missing repos
     if to_clone:
         output.header(f"Cloning {len(to_clone)} repo(s)")
-        for name in to_clone:
-            target = repos_dir / name
-            if dry_run:
+        if dry_run:
+            for name in to_clone:
                 output.skip(f"{name} (would clone)")
-                continue
-            try:
-                r = git.clone_repo(f"tsilva/{name}", target)
-                if r.returncode == 0:
-                    output.success(f"{name} (cloned)")
-                else:
-                    output.error(f"{name} (clone failed: {r.stderr.strip()})")
-                    errors += 1
-            except Exception as e:
-                output.error(f"{name} (clone failed: {e})")
-                errors += 1
+        else:
+            with ThreadPoolExecutor(max_workers=min(4, len(to_clone))) as pool:
+                list(pool.map(_clone_one, to_clone))
 
     # Fetch existing repos
     if to_fetch:
         output.header(f"Fetching {len(to_fetch)} repo(s)")
-        for name in to_fetch:
-            repo_path = repos_dir / name
-            if dry_run:
+        if dry_run:
+            for name in to_fetch:
                 output.skip(f"{name} (would fetch)")
-                continue
-            try:
-                r = git.fetch_all(repo_path)
-                if r.returncode == 0:
-                    output.success(f"{name} (fetched)")
-                else:
-                    output.error(f"{name} (fetch failed: {r.stderr.strip()})")
-                    errors += 1
-            except Exception as e:
-                output.error(f"{name} (fetch failed: {e})")
-                errors += 1
+        else:
+            with ThreadPoolExecutor(max_workers=min(4, len(to_fetch))) as pool:
+                list(pool.map(_fetch_one, to_fetch))
 
     # Skipped dirs
     if skipped:

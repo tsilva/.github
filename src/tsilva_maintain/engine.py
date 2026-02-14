@@ -108,10 +108,11 @@ class RuleRunner:
                 output.info("No git repositories found.")
             return 0
 
-        # Inject prefetched descriptions from metadata
+        # Inject prefetched descriptions and github_repo from metadata
         for repo in repos:
             if repo.name in org_metadata:
                 repo._prefetch["description"] = org_metadata[repo.name]
+            repo._prefetch["github_repo"] = f"tsilva/{repo.name}"
 
         # Prefetch workflow conclusions in parallel
         if not json_output:
@@ -124,58 +125,60 @@ class RuleRunner:
         with ThreadPoolExecutor(max_workers=8) as pool:
             pool.map(_fetch_wf, wf_repos)
 
-        repo_results: list[RepoResult] = []
         progress = ProgressBar(len(repos) * len(rules)) if not json_output else None
 
-        for repo in repos:
+        def _process_repo(repo: Repo) -> RepoResult:
             rr = RepoResult(name=repo.name, path=str(repo.path))
+            try:
+                for rule in rules:
+                    if progress:
+                        progress.update(repo.name, rule.id, "Checking")
 
-            for rule in rules:
-                if progress:
-                    progress.update(repo.name, rule.id, "Checking")
+                    if not rule.applies_to(repo):
+                        rr.results.append(RuleResult(rule.id, "skip"))
+                        continue
 
-                if not rule.applies_to(repo):
-                    rr.results.append(RuleResult(rule.id, "skip"))
-                    continue
+                    result = rule.check(repo)
 
-                result = rule.check(repo)
+                    if result.status == Status.PASS:
+                        rr.results.append(RuleResult(rule.id, "pass"))
+                        continue
 
-                if result.status == Status.PASS:
-                    rr.results.append(RuleResult(rule.id, "pass"))
-                    continue
+                    if result.status == Status.SKIP:
+                        rr.results.append(RuleResult(rule.id, "skip"))
+                        continue
 
-                if result.status == Status.SKIP:
-                    rr.results.append(RuleResult(rule.id, "skip"))
-                    continue
+                    # Rule failed — attempt fix
+                    if progress:
+                        progress.set_phase(repo.name, rule.id, "Fixing")
+                    outcome = rule.fix(repo, dry_run=dry_run)
 
-                # Rule failed — attempt fix
-                if progress:
-                    progress.set_phase(repo.name, rule.id, "Fixing")
-                outcome = rule.fix(repo, dry_run=dry_run)
-
-                if outcome.status == FixOutcome.FIXED:
-                    if dry_run:
-                        # Trust the fix outcome — no re-verify since files weren't modified
-                        rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
-                    else:
-                        # Re-check to verify the fix actually worked
-                        if progress:
-                            progress.set_phase(repo.name, rule.id, "Verifying")
-                        verify = rule.check(repo)
-                        if verify.status == Status.PASS:
+                    if outcome.status == FixOutcome.FIXED:
+                        if dry_run:
                             rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
                         else:
-                            rr.results.append(RuleResult(rule.id, "fix_failed", verify.message))
-                elif outcome.status == FixOutcome.ALREADY_OK:
-                    rr.results.append(RuleResult(rule.id, "pass"))
-                elif outcome.status == FixOutcome.MANUAL:
-                    rr.results.append(RuleResult(rule.id, "manual", result.message))
-                elif outcome.status == FixOutcome.SKIPPED:
-                    rr.results.append(RuleResult(rule.id, "manual", outcome.message))
-                else:
-                    rr.results.append(RuleResult(rule.id, "failed", outcome.message))
+                            if progress:
+                                progress.set_phase(repo.name, rule.id, "Verifying")
+                            verify = rule.check(repo)
+                            if verify.status == Status.PASS:
+                                rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
+                            else:
+                                rr.results.append(RuleResult(rule.id, "fix_failed", verify.message))
+                    elif outcome.status == FixOutcome.ALREADY_OK:
+                        rr.results.append(RuleResult(rule.id, "pass"))
+                    elif outcome.status == FixOutcome.MANUAL:
+                        rr.results.append(RuleResult(rule.id, "manual", result.message))
+                    elif outcome.status == FixOutcome.SKIPPED:
+                        rr.results.append(RuleResult(rule.id, "manual", outcome.message))
+                    else:
+                        rr.results.append(RuleResult(rule.id, "failed", outcome.message))
+            except Exception as exc:
+                rr.results.append(RuleResult("INTERNAL", "failed", str(exc)))
+            return rr
 
-            repo_results.append(rr)
+        max_workers = min(8, len(repos))
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            repo_results = list(pool.map(_process_repo, repos))
 
         if progress:
             progress.clear()

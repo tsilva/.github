@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from tsilva_maintain import git, output
@@ -26,11 +27,15 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
         print(f"{output.YELLOW}DRY RUN MODE - no changes will be made{output.NC}", file=sys.stderr)
     print("", file=sys.stderr)
 
-    # Phase 1: Find dirty repos
-    dirty_repos = []
+    # Phase 1: Find dirty repos (parallel status check)
+    def _check_dirty(repo: Repo) -> tuple[Repo, str]:
+        return (repo, git.status_porcelain(repo.path))
 
-    for repo in repos:
-        status = git.status_porcelain(repo.path)
+    with ThreadPoolExecutor(max_workers=min(8, len(repos))) as pool:
+        results = list(pool.map(_check_dirty, repos))
+
+    dirty_repos = []
+    for repo, status in results:
         if not status:
             output.success(f"{repo.name} (no changes)")
             continue

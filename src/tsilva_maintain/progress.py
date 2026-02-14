@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 
 
 def _use_color() -> bool:
@@ -22,15 +23,18 @@ class ProgressBar:
         self.step = 0
         self._is_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
         self._color = _use_color()
+        self._lock = threading.Lock()
 
     def update(self, repo_name: str, rule_id: str, phase: str) -> None:
         """Increment counter and redraw."""
-        self.step += 1
-        self._draw(repo_name, rule_id, phase)
+        with self._lock:
+            self.step += 1
+            self._draw(repo_name, rule_id, phase)
 
     def set_phase(self, repo_name: str, rule_id: str, phase: str) -> None:
         """Redraw with new phase without incrementing."""
-        self._draw(repo_name, rule_id, phase)
+        with self._lock:
+            self._draw(repo_name, rule_id, phase)
 
     def clear(self) -> None:
         """Erase the progress line."""

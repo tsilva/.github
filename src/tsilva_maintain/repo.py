@@ -29,7 +29,10 @@ class Repo:
     @property
     def github_repo(self) -> str | None:
         if "github_repo" not in self._cache:
-            self._cache["github_repo"] = self._extract_github_repo()
+            if "github_repo" in self._prefetch:
+                self._cache["github_repo"] = self._prefetch["github_repo"]
+            else:
+                self._cache["github_repo"] = self._extract_github_repo()
         return self._cache["github_repo"]
 
     @property
@@ -143,14 +146,14 @@ class Repo:
                 return True
         if self.has_pyproject:
             return True
-        py_files = [
-            p
-            for p in self.path.rglob("*.py")
-            if not p.name.startswith("test_")
-            and ".venv" not in p.parts
-            and "node_modules" not in p.parts
-        ]
-        return len(py_files) > 2
+        count = 0
+        for p in self.path.rglob("*.py"):
+            if p.name.startswith("test_") or ".venv" in p.parts or "node_modules" in p.parts:
+                continue
+            count += 1
+            if count > 2:
+                return True
+        return False
 
     def _extract_github_repo(self) -> str | None:
         try:
