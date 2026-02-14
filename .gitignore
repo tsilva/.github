@@ -1,3 +1,4 @@
+.worktrees/
 logs/
 .claude/*
 !.claude/skills/
