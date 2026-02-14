@@ -97,7 +97,7 @@ def fetch_org_repo_metadata(org: str) -> dict[str, str]:
     query = """
 query($owner: String!, $cursor: String) {
   repositoryOwner(login: $owner) {
-    repositories(first: 100, after: $cursor, orderBy: {field: NAME, direction: ASC}) {
+    repositories(first: 100, after: $cursor, ownerAffiliations: [OWNER], orderBy: {field: NAME, direction: ASC}) {
       pageInfo { hasNextPage endCursor }
       nodes { name description isArchived }
     }
