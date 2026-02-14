@@ -14,6 +14,7 @@ class Repo:
 
     path: Path
     _cache: dict = field(default_factory=dict, repr=False, compare=False)
+    _prefetch: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def name(self) -> str:

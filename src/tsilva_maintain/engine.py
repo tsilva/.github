@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
 from tsilva_maintain import output
-from tsilva_maintain.github import list_org_repos
+from tsilva_maintain.github import fetch_org_repo_metadata, get_workflow_conclusions
 from tsilva_maintain.progress import ProgressBar
 from tsilva_maintain.repo import Repo
 from tsilva_maintain.rules import CheckResult, FixOutcome, Rule, Status
@@ -88,7 +89,8 @@ class RuleRunner:
         """Single-pass: for each repo, check each rule and optionally fix."""
         if not json_output:
             output.step("Discovering repositories\u2026")
-        non_archived = set(list_org_repos("tsilva"))
+        org_metadata = fetch_org_repo_metadata("tsilva")
+        non_archived = set(org_metadata)
         if non_archived:
             all_local = {
                 child.name
@@ -105,6 +107,22 @@ class RuleRunner:
             if not json_output:
                 output.info("No git repositories found.")
             return 0
+
+        # Inject prefetched descriptions from metadata
+        for repo in repos:
+            if repo.name in org_metadata:
+                repo._prefetch["description"] = org_metadata[repo.name]
+
+        # Prefetch workflow conclusions in parallel
+        if not json_output:
+            output.step("Prefetching workflow status\u2026")
+        wf_repos = [r for r in repos if r.has_workflows and r.github_repo]
+
+        def _fetch_wf(repo: Repo) -> None:
+            repo._prefetch["workflow_conclusions"] = get_workflow_conclusions(repo.github_repo)  # type: ignore[arg-type]
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            pool.map(_fetch_wf, wf_repos)
 
         repo_results: list[RepoResult] = []
         progress = ProgressBar(len(repos) * len(rules)) if not json_output else None

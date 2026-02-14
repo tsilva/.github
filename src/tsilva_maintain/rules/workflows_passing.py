@@ -22,7 +22,9 @@ class WorkflowsPassingRule(Rule):
     def check(self, repo: Repo) -> CheckResult:
         if not gh_authenticated():
             return CheckResult(Status.SKIP, "gh not authenticated")
-        conclusions = get_workflow_conclusions(repo.github_repo)  # type: ignore[arg-type]
+        conclusions = repo._prefetch.get("workflow_conclusions")
+        if conclusions is None:
+            conclusions = get_workflow_conclusions(repo.github_repo)  # type: ignore[arg-type]
         if not conclusions:
             return CheckResult(Status.SKIP, "No completed workflow runs found")
         failed = {name: c for name, c in conclusions.items() if c != "success"}

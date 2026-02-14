@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 
@@ -55,7 +56,6 @@ def get_workflow_conclusions(github_repo: str, branch: str = "main") -> dict[str
         )
         if r.returncode != 0:
             return {}
-        import json
         runs = json.loads(r.stdout)
         conclusions: dict[str, str] = {}
         for run in runs:
@@ -83,11 +83,53 @@ def list_org_repos(org: str) -> list[str]:
         )
         if r.returncode != 0:
             return []
-        import json
         repos = json.loads(r.stdout)
         return sorted(repo["name"] for repo in repos)
     except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, KeyError):
         return []
+
+
+def fetch_org_repo_metadata(org: str) -> dict[str, str]:
+    """Return {repo_name: description} for non-archived repos via a single GraphQL call.
+
+    Uses repositoryOwner to work for both user and organization accounts.
+    """
+    query = """
+query($owner: String!, $cursor: String) {
+  repositoryOwner(login: $owner) {
+    repositories(first: 100, after: $cursor, orderBy: {field: NAME, direction: ASC}) {
+      pageInfo { hasNextPage endCursor }
+      nodes { name description isArchived }
+    }
+  }
+}"""
+    result: dict[str, str] = {}
+    cursor = None
+    try:
+        while True:
+            cmd = [
+                "gh", "api", "graphql",
+                "-f", f"query={query}",
+                "-f", f"owner={org}",
+            ]
+            if cursor:
+                cmd.extend(["-f", f"cursor={cursor}"])
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if r.returncode != 0:
+                return result or {}
+            data = json.loads(r.stdout)
+            repos_data = data["data"]["repositoryOwner"]["repositories"]
+            for node in repos_data["nodes"]:
+                if node.get("isArchived"):
+                    continue
+                result[node["name"]] = node.get("description") or ""
+            page_info = repos_data["pageInfo"]
+            if not page_info["hasNextPage"]:
+                break
+            cursor = page_info["endCursor"]
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError, KeyError):
+        pass
+    return result
 
 
 def set_repo_description(github_repo: str, description: str) -> bool:

@@ -26,7 +26,9 @@ class RepoDescriptionRule(Rule):
         if not tagline:
             return CheckResult(Status.SKIP)
 
-        github_desc = get_repo_description(github_repo)
+        github_desc = repo._prefetch.get("description")
+        if github_desc is None:
+            github_desc = get_repo_description(github_repo)
         if tagline == github_desc:
             return CheckResult(Status.PASS)
         return CheckResult(Status.FAIL, "Description mismatch (GitHub vs README tagline)")
@@ -47,7 +49,9 @@ class RepoDescriptionRule(Rule):
         if not tagline:
             return FixOutcome(FixOutcome.SKIPPED, "No tagline found")
 
-        github_desc = get_repo_description(github_repo)
+        github_desc = repo._prefetch.get("description")
+        if github_desc is None:
+            github_desc = get_repo_description(github_repo)
         if tagline == github_desc:
             return FixOutcome(FixOutcome.ALREADY_OK)
 
