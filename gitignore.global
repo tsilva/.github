@@ -2,8 +2,7 @@
 # Used by scripts/sync-gitignore.sh
 
 # Claude Code
-.claude/
-.claude-sandbox.json
+.claude/*.local.json
 
 # Secrets and credentials
 .env
