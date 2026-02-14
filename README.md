@@ -18,6 +18,7 @@
 - Testing — pytest via reusable workflow
 - Repo compliance — audit and enforce org standards across all repos via Python CLI
 - One-line integration — `uses: tsilva/.github/...@main` and `secrets: inherit`
+- Repo templates — pre-compliant starting points for new projects
 
 ## Workflows
 
@@ -163,6 +164,29 @@ The rule is auto-discovered — no registration needed.
 | `DEFAULT_BRANCH` | Default branch must be `main` |
 | `PENDING_COMMITS` | No uncommitted changes or unpushed commits |
 | `STALE_BRANCHES` | No merged or inactive (>90 days) branches |
+
+## Repository Templates
+
+Bootstrap new repos that are pre-compliant with org standards:
+
+```bash
+# Python CLI tool (published to PyPI)
+gh repo create tsilva/my-new-tool --template tsilva/template-python-cli --clone
+
+# Python sandbox/learning repo
+gh repo create tsilva/sandbox-whatever --template tsilva/template-python-sandbox --clone
+
+# Non-Python project
+gh repo create tsilva/my-app --template tsilva/template-generic --clone
+```
+
+| Template | Use case | Includes |
+|----------|----------|----------|
+| `template-python-cli` | CLI tools published to PyPI | src layout, hatchling build, release workflow, tests |
+| `template-python-sandbox` | Learning/experimentation | Minimal pyproject.toml, no workflows |
+| `template-generic` | Non-Python repos | No Python files |
+
+All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, dependabot, pre-commit (gitleaks), Claude sandbox config.
 
 ## Usage
 

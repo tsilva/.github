@@ -186,6 +186,29 @@ pre-commit run gitleaks --all-files
 
 Requires [gitleaks](https://github.com/gitleaks/gitleaks#installing) installed locally.
 
+## Repository Templates
+
+Three GitHub template repos provide pre-compliant starting points for new projects. Use `gh repo create` with `--template` to bootstrap:
+
+```bash
+# Python CLI tool (published to PyPI)
+gh repo create tsilva/my-new-tool --template tsilva/template-python-cli --clone
+
+# Python sandbox/learning repo
+gh repo create tsilva/sandbox-whatever --template tsilva/template-python-sandbox --clone
+
+# Non-Python project
+gh repo create tsilva/my-app --template tsilva/template-generic --clone
+```
+
+| Template | Use case | Key files |
+|----------|----------|-----------|
+| `template-python-cli` | CLI tools published to PyPI | pyproject.toml (hatchling), src layout, release workflow, tests |
+| `template-python-sandbox` | Learning/experimentation | Minimal pyproject.toml, no src layout, no release workflow |
+| `template-generic` | Non-Python repos | No Python files, dependabot for github-actions only |
+
+All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, .github/dependabot.yml, .pre-commit-config.yaml (gitleaks), .claude/settings.local.json (sandbox enabled).
+
 ## Maintenance
 
 README.md must be kept up to date with any significant project changes.
