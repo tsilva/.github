@@ -21,6 +21,7 @@ BLUE = "\033[0;34m" if _COLOR else ""
 CYAN = "\033[0;36m" if _COLOR else ""
 BOLD = "\033[1m" if _COLOR else ""
 DIM = "\033[2m" if _COLOR else ""
+BG_DARK = "\033[48;5;236m" if _COLOR else ""
 NC = "\033[0m" if _COLOR else ""
 
 

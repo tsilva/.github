@@ -2,3 +2,30 @@ logs/
 .claude/*
 !.claude/skills/
 *.pyc
+
+# Managed by tsilva/.github
+# Do not remove - synced automatically
+.claude/
+.claude-sandbox.json
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.json
+.secrets/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+__pycache__/
+.venv/
+venv/
+*.egg-info/
+node_modules/
+dist/
+build/
+*.log

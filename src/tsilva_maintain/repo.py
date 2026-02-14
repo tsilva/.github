@@ -179,7 +179,12 @@ class Repo:
             return False
 
     @staticmethod
-    def discover(repos_dir: Path, filter_pattern: str = "", skip_archived: bool = True) -> list[Repo]:
+    def discover(
+        repos_dir: Path,
+        filter_pattern: str = "",
+        skip_archived: bool = True,
+        archived_names: set[str] | None = None,
+    ) -> list[Repo]:
         repos = []
         if not repos_dir.is_dir():
             return repos
@@ -190,10 +195,17 @@ class Repo:
                 continue
             if filter_pattern and filter_pattern not in child.name:
                 continue
-            repo = Repo(path=child)
-            if skip_archived and repo.is_archived:
-                continue
-            repos.append(repo)
+            if skip_archived:
+                if archived_names is not None:
+                    if child.name in archived_names:
+                        continue
+                else:
+                    repo = Repo(path=child)
+                    if repo.is_archived:
+                        continue
+                    repos.append(repo)
+                    continue
+            repos.append(Repo(path=child))
         return repos
 
 

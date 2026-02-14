@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tsilva_maintain import output
+from tsilva_maintain.github import list_org_repos
+from tsilva_maintain.progress import ProgressBar
 from tsilva_maintain.repo import Repo
 from tsilva_maintain.rules import CheckResult, FixOutcome, Rule, Status
 from tsilva_maintain.rules._registry import discover_rules
@@ -84,7 +86,19 @@ class RuleRunner:
         json_output: bool = False,
     ) -> int:
         """Single-pass: for each repo, check each rule and optionally fix."""
-        repos = Repo.discover(self.repos_dir, self.filter_pattern)
+        if not json_output:
+            output.step("Discovering repositories\u2026")
+        non_archived = set(list_org_repos("tsilva"))
+        if non_archived:
+            all_local = {
+                child.name
+                for child in self.repos_dir.iterdir()
+                if child.is_dir() and (child / ".git").is_dir()
+            }
+            archived_names = all_local - non_archived
+        else:
+            archived_names = None
+        repos = Repo.discover(self.repos_dir, self.filter_pattern, archived_names=archived_names)
         rules = self._filter_rules()
 
         if not repos:
@@ -93,11 +107,15 @@ class RuleRunner:
             return 0
 
         repo_results: list[RepoResult] = []
+        progress = ProgressBar(len(repos) * len(rules)) if not json_output else None
 
         for repo in repos:
             rr = RepoResult(name=repo.name, path=str(repo.path))
 
             for rule in rules:
+                if progress:
+                    progress.update(repo.name, rule.id, "Checking")
+
                 if not rule.applies_to(repo):
                     rr.results.append(RuleResult(rule.id, "skip"))
                     continue
@@ -113,6 +131,8 @@ class RuleRunner:
                     continue
 
                 # Rule failed — attempt fix
+                if progress:
+                    progress.set_phase(repo.name, rule.id, "Fixing")
                 outcome = rule.fix(repo, dry_run=dry_run)
 
                 if outcome.status == FixOutcome.FIXED:
@@ -121,6 +141,8 @@ class RuleRunner:
                         rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
                     else:
                         # Re-check to verify the fix actually worked
+                        if progress:
+                            progress.set_phase(repo.name, rule.id, "Verifying")
                         verify = rule.check(repo)
                         if verify.status == Status.PASS:
                             rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
@@ -136,6 +158,9 @@ class RuleRunner:
                     rr.results.append(RuleResult(rule.id, "failed", outcome.message))
 
             repo_results.append(rr)
+
+        if progress:
+            progress.clear()
 
         if json_output:
             return self._output_json(repos, repo_results)
@@ -171,15 +196,16 @@ class RuleRunner:
                 if fixed:
                     parts.append(f"{fixed} fixed")
                 parts.append(f"{len(manual)} manual")
-                output.error(f"{rr.name:<28} {', '.join(parts)}")
-                for m in manual:
-                    output.detail(f"{output.RED}{m.rule_id}{output.NC}: {m.message}")
+                print(f"{output.BG_DARK}{output.RED}\u2717 {output.NC}{output.BG_DARK}{rr.name:<28} {', '.join(parts)}{output.NC}", file=sys.stderr)
+                for i, m in enumerate(manual):
+                    connector = "└" if i == len(manual) - 1 else "├"
+                    output.detail(f"{output.DIM}{connector}{output.NC} {output.RED}{m.rule_id}{output.NC}: {m.message}")
             elif fixed:
                 needed_fixes += 1
-                output.success(f"{rr.name:<28} {passed}/{total} passed ({fixed} fixed)")
+                print(f"{output.BG_DARK}{output.GREEN}\u2713 {output.NC}{output.BG_DARK}{rr.name:<28} {passed}/{total} passed ({fixed} fixed){output.NC}", file=sys.stderr)
             else:
                 all_passing += 1
-                output.success(f"{rr.name:<28} {total}/{total} passed")
+                print(f"{output.BG_DARK}{output.GREEN}\u2713 {output.NC}{output.BG_DARK}{rr.name:<28} {total}/{total} passed{output.NC}", file=sys.stderr)
 
         # Summary footer
         output.header("Results")
