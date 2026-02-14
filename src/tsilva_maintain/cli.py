@@ -13,7 +13,7 @@ _REPOS_DIR_HELP = (
     f"(default: ${_REPOS_DIR_ENV} env var)"
 )
 
-_SUBCOMMANDS = {"commit", "report", "sync"}
+_SUBCOMMANDS = {"commit", "report"}
 
 
 def _resolve_repos_dir(args: argparse.Namespace) -> None:
@@ -55,18 +55,6 @@ def _build_commit_parser() -> argparse.ArgumentParser:
     parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
     parser.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
     parser.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show dirty repos without committing")
-    return parser
-
-
-def _build_sync_parser() -> argparse.ArgumentParser:
-    """Build parser for the sync subcommand."""
-    parser = argparse.ArgumentParser(
-        prog="tsilva-maintain sync",
-        description="Clone missing repos and fetch updates for existing repos",
-    )
-    parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
-    parser.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
-    parser.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show what would happen without making changes")
     return parser
 
 
@@ -117,18 +105,6 @@ def main(argv: list[str] | None = None) -> None:
 
             sys.exit(run_report(args.report_type, args.repos_dir, args.filter_pattern))
 
-        elif command == "sync":
-            parser = _build_sync_parser()
-            args = parser.parse_args(rest)
-            _resolve_repos_dir(args)
-
-            if not args.repos_dir.is_dir():
-                print(f"Error: Directory does not exist: {args.repos_dir}", file=sys.stderr)
-                sys.exit(1)
-
-            from tsilva_maintain.commands.sync import run_sync
-
-            sys.exit(run_sync(args.repos_dir, args.filter_pattern, args.dry_run))
     else:
         # Default: maintain (single-pass check+fix)
         parser = _build_maintain_parser()

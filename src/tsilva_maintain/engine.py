@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tsilva_maintain import output
+from tsilva_maintain import git, output
 from tsilva_maintain.github import fetch_org_repo_metadata, get_workflow_conclusions
 from tsilva_maintain.progress import ProgressBar
 from tsilva_maintain.repo import Repo
@@ -100,6 +101,47 @@ class RuleRunner:
             archived_names = all_local - non_archived
         else:
             archived_names = None
+
+        # Clone missing repos before discovery
+        cloned: list[str] = []
+        clone_errors: list[str] = []
+        if non_archived:
+            to_clone = sorted(non_archived - all_local)
+            if self.filter_pattern:
+                to_clone = [n for n in to_clone if self.filter_pattern in n]
+            if to_clone:
+                if not json_output:
+                    output.step(f"Cloning {len(to_clone)} missing repo(s)\u2026")
+                if dry_run:
+                    for name in to_clone:
+                        if not json_output:
+                            output.skip(f"{name} (would clone)")
+                        cloned.append(name)
+                else:
+                    errors_lock = threading.Lock()
+
+                    def _clone_one(name: str) -> None:
+                        target = self.repos_dir / name
+                        try:
+                            r = git.clone_repo(f"tsilva/{name}", target)
+                            if r.returncode == 0:
+                                if not json_output:
+                                    output.success(f"{name} (cloned)")
+                                cloned.append(name)
+                            else:
+                                if not json_output:
+                                    output.error(f"{name} (clone failed: {r.stderr.strip()})")
+                                with errors_lock:
+                                    clone_errors.append(name)
+                        except Exception as e:
+                            if not json_output:
+                                output.error(f"{name} (clone failed: {e})")
+                            with errors_lock:
+                                clone_errors.append(name)
+
+                    with ThreadPoolExecutor(max_workers=min(8, len(to_clone))) as pool:
+                        list(pool.map(_clone_one, to_clone))
+
         repos = Repo.discover(self.repos_dir, self.filter_pattern, archived_names=archived_names)
         rules = self._filter_rules()
 
@@ -129,6 +171,11 @@ class RuleRunner:
 
         def _process_repo(repo: Repo) -> RepoResult:
             rr = RepoResult(name=repo.name, path=str(repo.path))
+            if not dry_run and not repo.is_dirty:
+                try:
+                    git.fetch_all(repo.path)
+                except Exception:
+                    pass
             try:
                 for rule in rules:
                     if progress:
@@ -183,8 +230,10 @@ class RuleRunner:
         if progress:
             progress.clear()
 
+        sync_info = {"cloned": cloned, "clone_errors": clone_errors}
+
         if json_output:
-            return self._output_json(repos, repo_results)
+            return self._output_json(repos, repo_results, sync=sync_info)
 
         return self._output_summary(repo_results, dry_run=dry_run)
 
@@ -239,7 +288,7 @@ class RuleRunner:
 
         return 1 if needs_work > 0 else 0
 
-    def _output_json(self, repos: list[Repo], repo_results: list[RepoResult]) -> int:
+    def _output_json(self, repos: list[Repo], repo_results: list[RepoResult], *, sync: dict | None = None) -> int:
         """Output JSON report to stdout."""
         github_user = ""
         if repos and repos[0].github_repo:
@@ -291,6 +340,8 @@ class RuleRunner:
                 "pass_rate": pass_rate,
             },
         }
+        if sync and (sync["cloned"] or sync["clone_errors"]):
+            report["sync"] = sync
         print(json.dumps(report, indent=2))
 
         return 1 if total_failed > 0 else 0

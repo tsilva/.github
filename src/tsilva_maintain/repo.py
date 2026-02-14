@@ -57,6 +57,13 @@ class Repo:
         return self._cache["is_archived"]
 
     @property
+    def is_dirty(self) -> bool:
+        if "is_dirty" not in self._cache:
+            from tsilva_maintain import git
+            self._cache["is_dirty"] = bool(git.status_porcelain(self.path))
+        return self._cache["is_dirty"]
+
+    @property
     def has_pyproject(self) -> bool:
         return (self.path / "pyproject.toml").is_file()
 
