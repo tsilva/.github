@@ -2,7 +2,7 @@
 
 ## Repository Purpose
 
-Shared GitHub Actions reusable workflows and org-wide maintenance tooling for the `tsilva` GitHub organization. Caller repositories reference workflows from this repo to standardize CI/CD across projects. The Python CLI (`tsilva-maintain`) audits and enforces repo compliance standards.
+Shared GitHub Actions reusable workflows and org-wide maintenance tooling for the `tsilva` GitHub organization. Caller repositories reference workflows from this repo to standardize CI/CD across projects. The Python CLI (`gitguard`) audits and enforces repo compliance standards.
 
 ## Architecture
 
@@ -10,11 +10,11 @@ Shared GitHub Actions reusable workflows and org-wide maintenance tooling for th
 
 Modular reusable workflows triggered via `workflow_call`. Each workflow handles a single concern and can be called independently. A composed `release.yml` chains them together for the common release flow.
 
-### Python CLI (`tsilva-maintain`)
+### Python CLI (`gitguard`)
 
-The primary maintenance tool. A Python package in `src/tsilva_maintain/` installable via `uv tool install` or `uv pip install -e .`. Each compliance rule is a self-contained class in `src/tsilva_maintain/rules/` with `check()` and `fix()` methods, auto-discovered via `pkgutil`.
+The primary maintenance tool. A Python package in `src/gitguard/` installable via `uv tool install` or `uv pip install -e .`. Each compliance rule is a self-contained class in `src/gitguard/rules/` with `check()` and `fix()` methods, auto-discovered via `pkgutil`.
 
-Commands: `tsilva-maintain [repos-dir]` (clone missing repos, fetch updates, check+fix), `tsilva-maintain --dry-run` (preview), `tsilva-maintain commit` (AI-assisted commit+push), `tsilva-maintain report`
+Commands: `gitguard [repos-dir]` (clone missing repos, fetch updates, check+fix), `gitguard --dry-run` (preview), `gitguard commit` (AI-assisted commit+push), `gitguard report`
 
 ### Scripts
 
@@ -24,7 +24,7 @@ Only `scripts/set-secret-all-repos.sh` remains (no Python replacement). It depen
 
 Skills in `.claude/skills/` provide AI-dependent maintenance operations:
 
-- `maintain-repos` — orchestrator: uses `tsilva-maintain` CLI for audit/fix, delegates to AI skills for remaining issues
+- `maintain-repos` — orchestrator: uses `gitguard` CLI for audit/fix, delegates to AI skills for remaining issues
 
 ## Workflows
 
@@ -99,44 +99,44 @@ Set `publish_to_pypi: false` for non-Python repos:
     secrets: inherit
 ```
 
-## Python CLI (`tsilva-maintain`)
+## Python CLI (`gitguard`)
 
 ### Installation
 
 ```bash
 uv pip install -e .           # development
-uv tool install tsilva-maintain  # global CLI
+uv tool install gitguard  # global CLI
 ```
 
 ### Commands
 
 ```
-tsilva-maintain [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
-tsilva-maintain commit [repos-dir] [-f PAT] [-n|--dry-run]
-tsilva-maintain report taglines|tracked-ignored [repos-dir] [-f PAT]
+gitguard [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
+gitguard commit [repos-dir] [-f PAT] [-n|--dry-run]
+gitguard report taglines|tracked-ignored [repos-dir] [-f PAT]
 ```
 
 Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing.
 
 ### Package Structure
 
-- `src/tsilva_maintain/cli.py` — argparse entry point
-- `src/tsilva_maintain/engine.py` — RuleRunner: single-pass check → fix → verify per rule
-- `src/tsilva_maintain/commands/commit.py` — interactive AI-assisted commit & push
-- `src/tsilva_maintain/repo.py` — Repo dataclass with lazy-cached properties
-- `src/tsilva_maintain/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
-- `src/tsilva_maintain/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
-- `src/tsilva_maintain/rules/_registry.py` — auto-discovery + dependency-aware ordering
-- `src/tsilva_maintain/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
-- `src/tsilva_maintain/tagline.py` — README tagline extractor (from `scripts/lib/extract_tagline.py`)
-- `src/tsilva_maintain/templates/` — LICENSE, CLAUDE.md, dependabot.yml, pre-commit-config.yaml
+- `src/gitguard/cli.py` — argparse entry point
+- `src/gitguard/engine.py` — RuleRunner: single-pass check → fix → verify per rule
+- `src/gitguard/commands/commit.py` — interactive AI-assisted commit & push
+- `src/gitguard/repo.py` — Repo dataclass with lazy-cached properties
+- `src/gitguard/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
+- `src/gitguard/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
+- `src/gitguard/rules/_registry.py` — auto-discovery + dependency-aware ordering
+- `src/gitguard/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
+- `src/gitguard/tagline.py` — README tagline extractor (from `scripts/lib/extract_tagline.py`)
+- `src/gitguard/templates/` — LICENSE, CLAUDE.md, dependabot.yml, pre-commit-config.yaml
 
 ### Adding a New Rule
 
-Create `src/tsilva_maintain/rules/my_rule.py`:
+Create `src/gitguard/rules/my_rule.py`:
 
 ```python
-from tsilva_maintain.rules import Category, CheckResult, Rule, Status
+from gitguard.rules import Category, CheckResult, Rule, Status
 
 class MyRule(Rule):
     id = "MY_RULE"

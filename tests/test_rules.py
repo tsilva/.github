@@ -4,9 +4,9 @@ import json
 import subprocess
 from pathlib import Path
 
-from tsilva_maintain.repo import Repo
-from tsilva_maintain.rules import Status
-from tsilva_maintain.rules._registry import discover_rules
+from gitguard.repo import Repo
+from gitguard.rules import Status
+from gitguard.rules._registry import discover_rules
 
 
 def test_all_rules_discovered():
@@ -64,7 +64,7 @@ def test_all_pass_on_complete_repo(tmp_repo):
 
 def test_readme_exists_fail(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.readme_exists import ReadmeExistsRule
+    from gitguard.rules.readme_exists import ReadmeExistsRule
     result = ReadmeExistsRule().check(repo)
     assert result.status == Status.FAIL
 
@@ -72,7 +72,7 @@ def test_readme_exists_fail(bare_repo):
 def test_readme_current_placeholders(tmp_repo):
     (tmp_repo / "README.md").write_text("# Test\n\nTODO: finish this\n\n## Usage\n\nExample here.\n")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.readme_current import ReadmeCurrentRule
+    from gitguard.rules.readme_current import ReadmeCurrentRule
     result = ReadmeCurrentRule().check(repo)
     assert result.status == Status.FAIL
     assert "TODO" in result.message
@@ -81,14 +81,14 @@ def test_readme_current_placeholders(tmp_repo):
 def test_readme_current_short(tmp_repo):
     (tmp_repo / "README.md").write_text("# Hi\n")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.readme_current import ReadmeCurrentRule
+    from gitguard.rules.readme_current import ReadmeCurrentRule
     result = ReadmeCurrentRule().check(repo)
     assert result.status == Status.FAIL
 
 
 def test_license_fix(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.file_exists import LicenseExistsRule
+    from gitguard.rules.file_exists import LicenseExistsRule
     rule = LicenseExistsRule()
     assert rule.check(repo).status == Status.FAIL
 
@@ -103,7 +103,7 @@ def test_license_fix(bare_repo):
 
 def test_claude_md_fix(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.file_exists import ClaudeMdExistsRule
+    from gitguard.rules.file_exists import ClaudeMdExistsRule
     rule = ClaudeMdExistsRule()
     assert rule.check(repo).status == Status.FAIL
 
@@ -118,7 +118,7 @@ def test_gitignore_fix_incomplete(tmp_repo):
     # Remove some patterns
     (tmp_repo / ".gitignore").write_text("*.pyc\n")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.gitignore import GitignoreRule
+    from gitguard.rules.gitignore import GitignoreRule
     rule = GitignoreRule()
     result = rule.check(repo)
     assert result.status == Status.FAIL
@@ -129,7 +129,7 @@ def test_gitignore_fix_incomplete(tmp_repo):
 
 def test_gitignore_fix_missing(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.gitignore import GitignoreRule
+    from gitguard.rules.gitignore import GitignoreRule
     rule = GitignoreRule()
     result = rule.check(repo)
     assert result.status == Status.FAIL
@@ -144,7 +144,7 @@ def test_gitignore_fix_missing(bare_repo):
 
 def test_sandbox_fix(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.claude_sandbox import ClaudeSandboxRule
+    from gitguard.rules.claude_sandbox import ClaudeSandboxRule
     rule = ClaudeSandboxRule()
     assert rule.check(repo).status == Status.FAIL
 
@@ -158,7 +158,7 @@ def test_sandbox_fix(bare_repo):
 
 def test_dependabot_fix(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.dependabot_exists import DependabotExistsRule
+    from gitguard.rules.dependabot_exists import DependabotExistsRule
     rule = DependabotExistsRule()
     assert rule.check(repo).status == Status.FAIL
 
@@ -169,7 +169,7 @@ def test_dependabot_fix(bare_repo):
 
 def test_precommit_fix(bare_repo):
     repo = Repo(path=bare_repo)
-    from tsilva_maintain.rules.precommit_gitleaks import PrecommitGitleaksRule
+    from gitguard.rules.precommit_gitleaks import PrecommitGitleaksRule
     rule = PrecommitGitleaksRule()
     assert rule.check(repo).status == Status.FAIL
 
@@ -181,7 +181,7 @@ def test_precommit_fix(bare_repo):
 
 def test_pending_commits_clean(tmp_repo):
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.pending_commits import PendingCommitsRule
+    from gitguard.rules.pending_commits import PendingCommitsRule
     result = PendingCommitsRule().check(repo)
     assert result.status == Status.PASS
 
@@ -189,7 +189,7 @@ def test_pending_commits_clean(tmp_repo):
 def test_pending_commits_dirty(tmp_repo):
     (tmp_repo / "new-file.txt").write_text("hello")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.pending_commits import PendingCommitsRule
+    from gitguard.rules.pending_commits import PendingCommitsRule
     result = PendingCommitsRule().check(repo)
     assert result.status == Status.FAIL
     assert "uncommitted" in result.message
@@ -197,7 +197,7 @@ def test_pending_commits_dirty(tmp_repo):
 
 def test_stale_branches_clean(tmp_repo):
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.stale_branches import StaleBranchesRule
+    from gitguard.rules.stale_branches import StaleBranchesRule
     result = StaleBranchesRule().check(repo)
     assert result.status == Status.PASS
 
@@ -205,7 +205,7 @@ def test_stale_branches_clean(tmp_repo):
 def test_python_pyproject_skip(tmp_repo):
     """Non-Python repos should skip."""
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.python import PythonPyprojectRule
+    from gitguard.rules.python import PythonPyprojectRule
     rule = PythonPyprojectRule()
     assert not rule.applies_to(repo)
 
@@ -213,7 +213,7 @@ def test_python_pyproject_skip(tmp_repo):
 def test_python_pyproject_pass(tmp_repo):
     (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n')
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.python import PythonPyprojectRule
+    from gitguard.rules.python import PythonPyprojectRule
     result = PythonPyprojectRule().check(repo)
     assert result.status == Status.PASS
 
@@ -225,7 +225,7 @@ def test_tracked_ignored_fix(tmp_repo):
     subprocess.run(["git", "-C", str(tmp_repo), "commit", "-m", "add env"], capture_output=True, check=True)
 
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.tracked_ignored import TrackedIgnoredRule
+    from gitguard.rules.tracked_ignored import TrackedIgnoredRule
     rule = TrackedIgnoredRule()
     result = rule.check(repo)
     assert result.status == Status.FAIL
@@ -245,7 +245,7 @@ def test_readme_license_fix(tmp_repo):
     # Remove license reference from README
     (tmp_repo / "README.md").write_text("# test-repo\n\nA test repo.\n\n## Installation\n\npip install test-repo\n")
     repo = Repo(path=tmp_repo)
-    from tsilva_maintain.rules.readme_content import ReadmeLicenseRule
+    from gitguard.rules.readme_content import ReadmeLicenseRule
     rule = ReadmeLicenseRule()
     assert rule.check(repo).status == Status.FAIL
 

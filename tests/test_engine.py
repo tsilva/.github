@@ -1,6 +1,6 @@
 """Tests for RuleRunner engine."""
 
-from tsilva_maintain.engine import RuleRunner
+from gitguard.engine import RuleRunner
 
 
 def test_run_dry_run_audit(repos_dir):
@@ -47,7 +47,7 @@ def test_run_maintain(repos_dir):
 
 def test_dependency_ordering():
     """Rules that depend on others should come after their dependencies."""
-    from tsilva_maintain.rules._registry import _CANONICAL_ORDER
+    from gitguard.rules._registry import _CANONICAL_ORDER
 
     order = {rule_id: i for i, rule_id in enumerate(_CANONICAL_ORDER)}
 

@@ -1,0 +1,59 @@
+"""Rule 5.2: Sandbox must be enabled."""
+
+import json
+
+from gitguard.rules import Category, CheckResult, FixOutcome, Rule, Status
+
+
+def _has_sandbox_enabled(repo_path) -> bool:
+    settings_file = repo_path / ".claude" / "settings.local.json"
+    if not settings_file.is_file():
+        return False
+    try:
+        data = json.loads(settings_file.read_text(encoding="utf-8"))
+        sandbox = data.get("sandbox", {})
+        return isinstance(sandbox, dict) and sandbox.get("enabled") is True
+    except Exception:
+        return False
+
+
+class ClaudeSandboxRule(Rule):
+    id = "CLAUDE_SANDBOX"
+    name = "Sandbox must be enabled"
+    category = Category.CLAUDE
+
+    def check(self, repo):
+        if _has_sandbox_enabled(repo.path):
+            return CheckResult(Status.PASS)
+        return CheckResult(Status.FAIL, "Sandbox not enabled")
+
+    def fix(self, repo, *, dry_run=False):
+        if _has_sandbox_enabled(repo.path):
+            return FixOutcome(FixOutcome.ALREADY_OK)
+
+        if dry_run:
+            return FixOutcome(FixOutcome.FIXED, "Would enable sandbox")
+
+        try:
+            claude_dir = repo.path / ".claude"
+            claude_dir.mkdir(parents=True, exist_ok=True)
+            settings_file = claude_dir / "settings.local.json"
+
+            if settings_file.is_file():
+                try:
+                    data = json.loads(settings_file.read_text(encoding="utf-8"))
+                except Exception:
+                    data = {}
+                if "sandbox" not in data:
+                    data["sandbox"] = {}
+                data["sandbox"]["enabled"] = True
+            else:
+                data = {
+                    "sandbox": {"enabled": True},
+                    "permissions": {"allow": [], "deny": []},
+                }
+
+            settings_file.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+            return FixOutcome(FixOutcome.FIXED, "Enabled sandbox")
+        except Exception as e:
+            return FixOutcome(FixOutcome.FAILED, str(e))

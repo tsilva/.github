@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from tsilva_maintain.repo import Repo, parse_github_remote
+from gitguard.repo import Repo, parse_github_remote
 
 
 def test_discover_finds_repos(repos_dir):
@@ -76,7 +76,7 @@ def test_is_archived_no_remote(tmp_repo):
 def test_is_archived_gh_fails(tmp_repo):
     repo = Repo(path=tmp_repo)
     repo._cache["github_repo"] = "owner/repo"
-    with patch("tsilva_maintain.repo.subprocess.run") as mock_run:
+    with patch("gitguard.repo.subprocess.run") as mock_run:
         mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="")
         assert repo.is_archived is False
 
@@ -84,7 +84,7 @@ def test_is_archived_gh_fails(tmp_repo):
 def test_is_archived_true(tmp_repo):
     repo = Repo(path=tmp_repo)
     repo._cache["github_repo"] = "owner/repo"
-    with patch("tsilva_maintain.repo.subprocess.run") as mock_run:
+    with patch("gitguard.repo.subprocess.run") as mock_run:
         mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="true\n", stderr="")
         assert repo.is_archived is True
 
@@ -92,7 +92,7 @@ def test_is_archived_true(tmp_repo):
 def test_is_archived_gh_not_found(tmp_repo):
     repo = Repo(path=tmp_repo)
     repo._cache["github_repo"] = "owner/repo"
-    with patch("tsilva_maintain.repo.subprocess.run", side_effect=FileNotFoundError):
+    with patch("gitguard.repo.subprocess.run", side_effect=FileNotFoundError):
         assert repo.is_archived is False
 
 

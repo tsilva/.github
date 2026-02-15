@@ -5,7 +5,7 @@
 
   Shared reusable GitHub Actions workflows and org-wide maintenance tooling for the `tsilva` organization
 
-  [Workflows](#workflows) · [CLI](#cli-tsilva-maintain) · [Usage](#usage) · [Pre-commit Hook](#pre-commit-hook)
+  [Workflows](#workflows) · [CLI](#cli-gitguard) · [Usage](#usage) · [Pre-commit Hook](#pre-commit-hook)
 </div>
 
 ## Features
@@ -50,7 +50,7 @@ Scans repository for credentials and secrets using [gitleaks-action v2](https://
 
 Caller repos can customize detection rules via a `.gitleaks.toml` config file.
 
-## CLI (`tsilva-maintain`)
+## CLI (`gitguard`)
 
 A Python CLI that replaces the legacy bash scripts. Each compliance rule is a self-contained class with `check()` and `fix()` methods, auto-discovered at runtime.
 
@@ -58,37 +58,37 @@ A Python CLI that replaces the legacy bash scripts. Each compliance rule is a se
 
 ```bash
 uv pip install -e .           # development
-uv tool install tsilva-maintain  # global CLI
+uv tool install gitguard  # global CLI
 ```
 
 ### Commands
 
 ```bash
 # Default — single-pass check + fix cycle
-tsilva-maintain ~/repos/tsilva
-tsilva-maintain ~/repos/tsilva --filter myrepo   # only repos matching pattern
-tsilva-maintain ~/repos/tsilva --rule README_EXISTS
+gitguard ~/repos/tsilva
+gitguard ~/repos/tsilva --filter myrepo   # only repos matching pattern
+gitguard ~/repos/tsilva --rule README_EXISTS
 
 # Dry run — preview what would be fixed without modifying files
-tsilva-maintain ~/repos/tsilva --dry-run
-tsilva-maintain ~/repos/tsilva --dry-run --json  # JSON output for CI
+gitguard ~/repos/tsilva --dry-run
+gitguard ~/repos/tsilva --dry-run --json  # JSON output for CI
 
 # Commit — AI-assisted commit & push for dirty repos
-tsilva-maintain commit ~/repos/tsilva
-tsilva-maintain commit ~/repos/tsilva --filter myrepo
-tsilva-maintain commit ~/repos/tsilva --dry-run   # show dirty repos only
+gitguard commit ~/repos/tsilva
+gitguard commit ~/repos/tsilva --filter myrepo
+gitguard commit ~/repos/tsilva --dry-run   # show dirty repos only
 
 # Report — generate reports
-tsilva-maintain report taglines ~/repos/tsilva
-tsilva-maintain report tracked-ignored ~/repos/tsilva
+gitguard report taglines ~/repos/tsilva
+gitguard report tracked-ignored ~/repos/tsilva
 ```
 
 ### Adding a New Rule
 
-Create one Python file in `src/tsilva_maintain/rules/`:
+Create one Python file in `src/gitguard/rules/`:
 
 ```python
-from tsilva_maintain.rules import Category, CheckResult, Rule, Status
+from gitguard.rules import Category, CheckResult, Rule, Status
 
 class MyRule(Rule):
     id = "MY_RULE"
