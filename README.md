@@ -19,6 +19,7 @@
 - Repo compliance — audit and enforce org standards across all repos via Python CLI
 - One-line integration — `uses: tsilva/.github/...@main` and `secrets: inherit`
 - Repo templates — pre-compliant starting points for new projects
+- Repo bootstrapping — automate new repo setup from template to full compliance in one command
 
 ## Workflows
 
@@ -187,6 +188,16 @@ gh repo create tsilva/my-app --template tsilva/template-generic --clone
 | `template-generic` | Non-Python repos | No Python files |
 
 All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, dependabot, pre-commit (gitleaks), Claude sandbox config.
+
+### Automated Bootstrapping
+
+Use the `bootstrap-repo` skill to go from zero to fully compliant in a single invocation — creates the GitHub repo from a template, clones it, replaces placeholders, generates a logo and README, runs gitguard, and commits:
+
+```
+/bootstrap-repo my-new-tool python-cli "A CLI tool that does X"
+/bootstrap-repo sandbox-ml python-sandbox "Experimenting with ML algorithms"
+/bootstrap-repo my-app generic "A web application"
+```
 
 ## Usage
 

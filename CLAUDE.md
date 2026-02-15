@@ -25,6 +25,7 @@ Only `scripts/set-secret-all-repos.sh` remains (no Python replacement). It depen
 Skills in `.claude/skills/` provide AI-dependent maintenance operations:
 
 - `maintain-repos` — orchestrator: uses `gitguard` CLI for audit/fix, delegates to AI skills for remaining issues
+- `bootstrap-repo` — bootstraps a new repo from a template to full compliance (create, clone, placeholders, logo, README, gitguard)
 
 ## Workflows
 
