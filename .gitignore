@@ -7,6 +7,7 @@ logs/
 .claude/*.local.json
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.p12
@@ -16,14 +17,17 @@ secrets.json
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
 *.swp
 *.swo
 __pycache__/
+*.pyc
 .venv/
 venv/
 *.egg-info/
 node_modules/
 dist/
 build/
+logs/
 *.log
