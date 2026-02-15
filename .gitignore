@@ -1,13 +1,10 @@
 .worktrees/
 logs/
-.claude/*
-!.claude/skills/
 *.pyc
 
 # Managed by tsilva/.github
 # Do not remove - synced automatically
-.claude/
-.claude-sandbox.json
+.claude/*.local.json
 .env
 .env.*
 *.pem
