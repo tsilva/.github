@@ -72,6 +72,39 @@ def _build_managed_block(rules: list[str]) -> str:
     return f"{_MANAGED_HEADER}\n{_MANAGED_SUBHEADER}\n" + "\n".join(rules) + "\n"
 
 
+def _dedup_user_rules(user_content: str, managed_rules: list[str]) -> str:
+    """Remove lines from user content that exactly match a managed rule.
+
+    Keeps comments, blank lines, and rules not in the managed set.
+    Collapses runs of 3+ consecutive blank lines down to 2.
+    Strips trailing blank lines.
+    """
+    managed_set = {r.strip() for r in managed_rules}
+    kept: list[str] = []
+    for line in user_content.splitlines():
+        stripped = line.strip()
+        if stripped == "" or stripped.startswith("#") or stripped not in managed_set:
+            kept.append(line)
+
+    # Collapse runs of 3+ consecutive blank lines down to 2
+    result: list[str] = []
+    blank_count = 0
+    for line in kept:
+        if not line.strip():
+            blank_count += 1
+            if blank_count <= 2:
+                result.append(line)
+        else:
+            blank_count = 0
+            result.append(line)
+
+    # Strip trailing blank lines
+    while result and not result[-1].strip():
+        result.pop()
+
+    return "\n".join(result) + "\n" if result else ""
+
+
 class GitignoreRule(Rule):
     id = "GITIGNORE"
     name = ".gitignore must exist with essential patterns"
@@ -128,7 +161,11 @@ class GitignoreRule(Rule):
         managed_rules = _parse_managed_rules(content)
 
         if set(managed_rules) == set(all_rules) and managed_rules:
-            return FixOutcome(FixOutcome.ALREADY_OK)
+            # Check if user section has duplicates that need cleaning
+            repo_content = _strip_managed_blocks(content)
+            deduped = _dedup_user_rules(repo_content, all_rules)
+            if deduped == repo_content:
+                return FixOutcome(FixOutcome.ALREADY_OK)
 
         if dry_run:
             stale = set(managed_rules) - set(all_rules)
@@ -144,6 +181,7 @@ class GitignoreRule(Rule):
 
         try:
             repo_content = _strip_managed_blocks(content)
+            repo_content = _dedup_user_rules(repo_content, all_rules)
             if repo_content:
                 new_content = repo_content + "\n" + managed_block
             else:

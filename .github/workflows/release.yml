@@ -6,6 +6,9 @@ on:
       publish_to_pypi:
         type: boolean
         default: true
+      homebrew_tap:
+        type: string
+        default: ''
 
 concurrency:
   group: release-${{ github.ref }}
@@ -22,6 +25,8 @@ jobs:
     if: inputs.publish_to_pypi
     needs: [test, pii-scan]
     uses: tsilva/.github/.github/workflows/publish-pypi.yml@main
+    with:
+      homebrew_tap: ${{ inputs.homebrew_tap }}
     secrets: inherit
 
   create-release:

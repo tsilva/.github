@@ -241,6 +241,50 @@ def test_tracked_ignored_fix(tmp_repo):
     assert result.status == Status.PASS
 
 
+def test_gitignore_fix_deduplicates_user_rules(tmp_repo):
+    """User rules that duplicate managed rules should be removed by fix()."""
+    from gitguard.rules.gitignore import GitignoreRule, _load_gitignore_global, _build_managed_block
+
+    global_rules = _load_gitignore_global()
+    assert global_rules, "gitignore.global must be loadable for this test"
+
+    # Write a .gitignore with user rules that overlap with managed rules
+    user_section = "# My custom rules\n.env\n.DS_Store\n__pycache__/\n*.pyc\n\n# Custom project rule\nmy-custom-dir/\n"
+    managed_block = _build_managed_block(global_rules)
+    (tmp_repo / ".gitignore").write_text(user_section + "\n" + managed_block)
+
+    repo = Repo(path=tmp_repo)
+    rule = GitignoreRule()
+
+    # fix() should deduplicate
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    content = (tmp_repo / ".gitignore").read_text()
+    lines = content.splitlines()
+
+    # Managed block should still contain all rules
+    assert ".env" in content
+    assert "__pycache__/" in content
+
+    # Count occurrences of duplicated rules — each should appear exactly once (in managed block)
+    env_count = sum(1 for l in lines if l.strip() == ".env")
+    assert env_count == 1, f".env appears {env_count} times, expected 1"
+
+    ds_count = sum(1 for l in lines if l.strip() == ".DS_Store")
+    assert ds_count == 1, f".DS_Store appears {ds_count} times, expected 1"
+
+    pycache_count = sum(1 for l in lines if l.strip() == "__pycache__/")
+    assert pycache_count == 1, f"__pycache__/ appears {pycache_count} times, expected 1"
+
+    # Custom rule that is NOT in managed block should be preserved
+    assert "my-custom-dir/" in content
+
+    # Comments should be preserved
+    assert "# My custom rules" in content
+    assert "# Custom project rule" in content
+
+
 def test_readme_license_fix(tmp_repo):
     # Remove license reference from README
     (tmp_repo / "README.md").write_text("# test-repo\n\nA test repo.\n\n## Installation\n\npip install test-repo\n")

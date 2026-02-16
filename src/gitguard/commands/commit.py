@@ -27,26 +27,37 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
         print(f"{output.YELLOW}DRY RUN MODE - no changes will be made{output.NC}", file=sys.stderr)
     print("", file=sys.stderr)
 
-    # Phase 1: Find dirty repos (parallel status check)
-    def _check_dirty(repo: Repo) -> tuple[Repo, str]:
-        return (repo, git.status_porcelain(repo.path))
+    # Phase 1: Find dirty repos and repos with unpushed commits (parallel)
+    def _check_repo(repo: Repo) -> tuple[Repo, str, str]:
+        status = git.status_porcelain(repo.path)
+        unpushed = "" if status else git.unpushed_commits(repo.path)
+        return (repo, status, unpushed)
 
     with ThreadPoolExecutor(max_workers=min(8, len(repos))) as pool:
-        results = list(pool.map(_check_dirty, repos))
+        results = list(pool.map(_check_repo, repos))
 
     dirty_repos = []
-    for repo, status in results:
-        if not status:
+    push_pending = []
+    for repo, status, unpushed in results:
+        if status:
+            dirty_repos.append((repo, status))
+        elif unpushed:
+            output.warn(f"{repo.name} (unpushed commits)")
+            push_pending.append((repo, unpushed))
+        else:
             output.success(f"{repo.name} (no changes)")
-            continue
-        dirty_repos.append((repo, status))
 
-    if not dirty_repos:
-        output.info("No repos with uncommitted changes found.")
+    if not dirty_repos and not push_pending:
+        output.info("No repos with uncommitted changes or unpushed commits found.")
         return 0
 
     print("", file=sys.stderr)
-    output.info(f"Found {len(dirty_repos)} repo(s) with uncommitted changes")
+    parts = []
+    if dirty_repos:
+        parts.append(f"{len(dirty_repos)} with uncommitted changes")
+    if push_pending:
+        parts.append(f"{len(push_pending)} with unpushed commits")
+    output.info(f"Found {', '.join(parts)}")
 
     # Phase 2: Process each dirty repo one at a time
     committed = 0
@@ -151,6 +162,39 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
         else:
             output.error(f"{repo.name} (commit failed)")
             failed += 1
+
+    # Phase 3: Process repos with unpushed commits
+    for i, (repo, unpushed) in enumerate(push_pending, 1):
+        output.header(f"[{i}/{len(push_pending)}] {repo.name} (unpushed)")
+
+        print(unpushed, file=sys.stderr)
+        print("", file=sys.stderr)
+
+        if dry_run:
+            print(f"{output.DIM}(would prompt to push){output.NC}", file=sys.stderr)
+            continue
+
+        print("  [p]ush / [s]kip / [q]uit? ", end="", file=sys.stderr, flush=True)
+
+        try:
+            choice = input().strip().lower()
+        except EOFError:
+            choice = "s"
+
+        if choice == "q":
+            output.info("Quitting early.")
+            break
+
+        if choice == "p":
+            if git.push(repo.path):
+                output.success(f"{repo.name} (pushed)")
+                pushed += 1
+            else:
+                output.error(f"{repo.name} (push failed)")
+                failed += 1
+        else:
+            output.skip(f"{repo.name} (skipped)")
+            skipped += 1
 
     print("", file=sys.stderr)
     print(f"Summary:", file=sys.stderr)

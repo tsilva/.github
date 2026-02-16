@@ -2,6 +2,10 @@ name: Publish to PyPI
 
 on:
   workflow_call:
+    inputs:
+      homebrew_tap:
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -35,3 +39,8 @@ jobs:
       - name: Publish to PyPI
         if: steps.check-version.outputs.tag_exists == 'false'
         uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Update Homebrew formula
+        if: steps.check-version.outputs.tag_exists == 'false' && inputs.homebrew_tap != ''
+        run: gh workflow run update-formula.yml -R "${{ inputs.homebrew_tap }}" -f version="${{ steps.check-version.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
