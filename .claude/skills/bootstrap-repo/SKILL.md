@@ -51,7 +51,7 @@ Run these checks before making any changes:
 ```bash
 gh api user --jq .login
 ```
-Must return a username. This tests actual API access, resilient to keyring errors.
+Must return a username. **Do NOT use `gh auth status`** — it fails when the sandbox blocks macOS keyring access. `gh api user` tests actual API access and is resilient to keyring errors. All `gh` commands in this workflow require `dangerouslyDisableSandbox: true`.
 
 ```bash
 gh repo view tsilva/REPO_NAME 2>&1
@@ -62,15 +62,11 @@ Check that `REPOS_DIR/REPO_NAME` does not exist locally. `REPOS_DIR` is the curr
 
 ### Step 3: Create Repo from Template & Clone
 
-Two-step create + clone for explicit control over clone destination:
+Two-step create + clone for explicit control over clone destination. **Do NOT use `gh repo create --clone`** — it clones into CWD, not REPOS_DIR.
 
 ```bash
 gh repo create tsilva/REPO_NAME --template tsilva/template-TEMPLATE_TYPE --public
-```
-
-Wait a few seconds for GitHub to finish template copying, then:
-
-```bash
+sleep 3
 gh repo clone tsilva/REPO_NAME REPOS_DIR/REPO_NAME
 ```
 
@@ -115,6 +111,8 @@ This must happen AFTER placeholder replacement in Step 4 so `sed` finds files at
 `cd` into the repo directory, then delegate to the logo generation skill:
 
 Use `/project-logo-author` to generate a logo for the project.
+
+**`uv run` pitfall:** The logo and README skills use `uv run` for helper scripts, which validates `pyproject.toml` in CWD. Template sandbox/generic repos have minimal pyproject.toml (no `version` field) that fails `uv run`. **Do NOT add `version` to fix this** — it triggers gitguard's `RELEASE_WORKFLOW` rule. Instead, use the skill's fallback config loading (Read tool) or run scripts from a directory with a valid pyproject.toml.
 
 The logo must exist at `logo.png` in the repo root before proceeding.
 
@@ -168,6 +166,8 @@ gitguard --dry-run --filter REPO_NAME REPOS_DIR
 Report results to user. Expected transient warnings for freshly bootstrapped repos:
 - `WORKFLOWS_PASSING` — CI hasn't run yet on the newly pushed commit
 - `README_CURRENT` — placeholder text like "Coming soon" is normal for repos with no code yet
+- `CI_WORKFLOW` — expected for `python-sandbox` and `generic` templates (no CI needed)
+- `PENDING_COMMITS` — `.vscode/` or other IDE artifacts may appear as untracked; ignore if in `.gitignore`
 
 ## Usage Examples
 
