@@ -64,7 +64,7 @@ def _build_report_parser() -> argparse.ArgumentParser:
         prog="gitguard report",
         description="Generate reports",
     )
-    parser.add_argument("report_type", choices=["taglines", "tracked-ignored"], help="Report type")
+    parser.add_argument("report_type", choices=["taglines", "tracked-ignored", "branches"], help="Report type")
     parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
     parser.add_argument("-f", "--filter", dest="filter_pattern", default="", help="Only process repos matching pattern")
     return parser

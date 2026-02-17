@@ -1,4 +1,4 @@
-"""Report commands: taglines and tracked-ignored."""
+"""Report commands: taglines, tracked-ignored, and branches."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ def run_report(report_type: str, repos_dir: Path, filter_pattern: str) -> int:
         return _report_taglines(repos_dir, filter_pattern)
     elif report_type == "tracked-ignored":
         return _report_tracked_ignored(repos_dir, filter_pattern)
+    elif report_type == "branches":
+        return _report_branches(repos_dir, filter_pattern)
     return 1
 
 
@@ -55,6 +57,30 @@ def _report_taglines(repos_dir: Path, filter_pattern: str) -> int:
 
     print("", file=sys.stderr)
     print(f"Summary: {with_tagline} with tagline, {without_tagline} without", file=sys.stderr)
+    return 0
+
+
+def _report_branches(repos_dir: Path, filter_pattern: str) -> int:
+    repos = Repo.discover(repos_dir, filter_pattern)
+    if not repos:
+        print("No git repositories found.", file=sys.stderr)
+        return 0
+
+    multi = 0
+    single = 0
+
+    for repo in repos:
+        branches = git.local_branches(repo.path)
+        if len(branches) < 2:
+            single += 1
+            continue
+        multi += 1
+        output.warn(f"{repo.name}: {len(branches)} branches")
+        for b in branches:
+            output.detail(f"  {b}")
+
+    print("", file=sys.stderr)
+    print(f"Summary: {multi} repos with multiple branches, {single} with single branch", file=sys.stderr)
     return 0
 
 

@@ -114,7 +114,7 @@ uv tool install gitguard  # global CLI
 ```
 gitguard [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
 gitguard commit [repos-dir] [-f PAT] [-n|--dry-run]
-gitguard report taglines|tracked-ignored [repos-dir] [-f PAT]
+gitguard report taglines|tracked-ignored|branches [repos-dir] [-f PAT]
 ```
 
 Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing.

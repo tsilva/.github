@@ -67,6 +67,13 @@ def branch_ages(repo_path: Path) -> list[tuple[str, int]]:
     return result
 
 
+def local_branches(repo_path: Path) -> list[str]:
+    r = run_git(repo_path, "branch", "--format=%(refname:short)")
+    if r.returncode != 0 or not r.stdout.strip():
+        return []
+    return r.stdout.strip().splitlines()
+
+
 def add_all(repo_path: Path) -> bool:
     return run_git(repo_path, "add", "-A").returncode == 0
 
