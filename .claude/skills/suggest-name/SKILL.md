@@ -12,7 +12,7 @@ Suggests short, punchy compound-word rename candidates for a tsilva org repo.
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `REPO_NAME` | yes | Current repo name (e.g., `food-log-parser`) |
+| `REPO_NAME` | yes | Current repo name (e.g., `foodparse`) |
 
 ## Execution Steps
 
@@ -91,7 +91,7 @@ Note: Run /rename-repo REPO_NAME <chosen-name> to execute the rename.
 ## Usage Examples
 
 ```
-/suggest-name food-log-parser
+/suggest-name foodparse
 /suggest-name clinical-notes-extractor
 /suggest-name retro-romset-cleaner
 ```
