@@ -51,6 +51,7 @@ class Rule(abc.ABC):
     id: str
     name: str
     category: Category
+    archived_only: bool = False
 
     def applies_to(self, repo: Repo) -> bool:
         """Whether this rule applies to the given repo. Default: True."""

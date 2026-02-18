@@ -13,6 +13,7 @@ def test_all_rules_discovered():
     rules = discover_rules()
     rule_ids = {r.id for r in rules}
     expected = {
+        "ARCHIVED_MARKER",
         "DEFAULT_BRANCH", "README_EXISTS", "README_CURRENT", "README_LICENSE",
         "README_LOGO", "LOGO_EXISTS", "LICENSE_EXISTS", "GITIGNORE",
         "CLAUDE_MD_EXISTS", "CLAUDE_SANDBOX",
@@ -30,8 +31,9 @@ def test_all_rules_discovered():
 
 def test_canonical_order():
     rules = discover_rules()
-    assert rules[0].id == "DEFAULT_BRANCH"
-    assert rules[1].id == "LICENSE_EXISTS"
+    assert rules[0].id == "ARCHIVED_MARKER"
+    assert rules[1].id == "DEFAULT_BRANCH"
+    assert rules[2].id == "LICENSE_EXISTS"
     assert rules[-1].id == "REPO_DESCRIPTION"
 
 
@@ -367,3 +369,24 @@ def test_claude_git_write_fix_removes_flagged_preserves_others(tmp_repo):
     assert "Bash(echo:*)" in allow
 
     assert rule.check(repo).status == Status.PASS
+
+
+def test_archived_marker_fail(bare_repo):
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.archived_marker import ArchivedMarkerRule
+    result = ArchivedMarkerRule().check(repo)
+    assert result.status == Status.FAIL
+    assert ".archived.md" in result.message
+
+
+def test_archived_marker_pass(bare_repo):
+    (bare_repo / ".archived.md").write_text("Archived: superseded by new-repo.\n")
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.archived_marker import ArchivedMarkerRule
+    result = ArchivedMarkerRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_archived_marker_is_archived_only():
+    from gitguard.rules.archived_marker import ArchivedMarkerRule
+    assert ArchivedMarkerRule.archived_only is True

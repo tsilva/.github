@@ -143,7 +143,9 @@ class RuleRunner:
                         list(pool.map(_clone_one, to_clone))
 
         repos = Repo.discover(self.repos_dir, self.filter_pattern, archived_names=archived_names)
-        rules = self._filter_rules()
+        all_rules = self._filter_rules()
+        main_rules = [r for r in all_rules if not r.archived_only]
+        archived_rules = [r for r in all_rules if r.archived_only]
 
         if not repos:
             if not json_output:
@@ -167,9 +169,22 @@ class RuleRunner:
         with ThreadPoolExecutor(max_workers=8) as pool:
             pool.map(_fetch_wf, wf_repos)
 
-        progress = ProgressBar(len(repos) * len(rules)) if not json_output else None
+        # Build archived repos list for the separate archived pass
+        archived_repos: list[Repo] = []
+        if archived_names and archived_rules:
+            for name in sorted(archived_names):
+                if self.filter_pattern and self.filter_pattern not in name:
+                    continue
+                path = self.repos_dir / name
+                if path.is_dir() and (path / ".git").is_dir():
+                    ar = Repo(path=path)
+                    ar._prefetch["github_repo"] = f"tsilva/{name}"
+                    archived_repos.append(ar)
 
-        def _process_repo(repo: Repo) -> RepoResult:
+        total_work = len(repos) * len(main_rules) + len(archived_repos) * len(archived_rules)
+        progress = ProgressBar(total_work) if not json_output else None
+
+        def _process_repo(repo: Repo, rules: list[Rule]) -> RepoResult:
             rr = RepoResult(name=repo.name, path=str(repo.path))
             if not dry_run and not repo.is_dirty:
                 try:
@@ -225,7 +240,14 @@ class RuleRunner:
 
         max_workers = min(8, len(repos))
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            repo_results = list(pool.map(_process_repo, repos))
+            repo_results = list(pool.map(lambda r: _process_repo(r, main_rules), repos))
+
+        # Archived-only pass
+        if archived_repos and archived_rules:
+            max_workers_archived = min(8, len(archived_repos))
+            with ThreadPoolExecutor(max_workers=max_workers_archived) as pool:
+                archived_results = list(pool.map(lambda r: _process_repo(r, archived_rules), archived_repos))
+            repo_results.extend(archived_results)
 
         if progress:
             progress.clear()

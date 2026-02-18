@@ -8,6 +8,8 @@ from gitguard.rules import Rule
 
 # Dependency-aware ordering: foundational rules first so later rules see fixed state.
 _CANONICAL_ORDER = [
+    # Archived-only rules (run in separate pass)
+    "ARCHIVED_MARKER",
     # Foundation: git basics
     "DEFAULT_BRANCH",
     # Foundation: key files that other rules depend on

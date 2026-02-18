@@ -128,7 +128,7 @@ Running with no flags clones missing repos, fetches updates for clean repos, the
 - `src/gitguard/commands/commit.py` — interactive AI-assisted commit & push
 - `src/gitguard/commands/rename.py` — repo rename (GitHub + local + remote + package dir + workspace file + global search-replace + uv.lock regen)
 - `src/gitguard/repo.py` — Repo dataclass with lazy-cached properties
-- `src/gitguard/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
+- `src/gitguard/rules/` — one file per compliance rule (25 total), auto-discovered via `pkgutil`
 - `src/gitguard/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
 - `src/gitguard/rules/_registry.py` — auto-discovery + dependency-aware ordering
 - `src/gitguard/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
