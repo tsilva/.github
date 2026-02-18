@@ -38,6 +38,13 @@ def tracked_ignored_files(repo_path: Path) -> list[str]:
     return r.stdout.strip().splitlines()
 
 
+def ls_files(repo_path: Path) -> list[str]:
+    r = run_git(repo_path, "ls-files")
+    if r.returncode != 0 or not r.stdout.strip():
+        return []
+    return r.stdout.strip().splitlines()
+
+
 def merged_branches(repo_path: Path) -> list[str]:
     r = run_git(repo_path, "branch", "--merged", "main")
     if r.returncode != 0 or not r.stdout.strip():

@@ -70,31 +70,39 @@ def run_rename(old_name: str, new_name: str, repos_dir: Path, dry_run: bool) -> 
             return 1
         output.success("Git remote URL updated")
 
-    # Step 5: Targeted file replacements
-    output.header("Targeted File Replacements")
-    replacements = _find_targeted_replacements(old_path if dry_run else new_path, old_name, new_name)
-    if not replacements:
-        output.info("No targeted replacements found")
-    else:
-        for file_rel, count in replacements:
-            if dry_run:
-                output.skip(f"Would update {file_rel} ({count} occurrence{'s' if count != 1 else ''})")
-            else:
-                _apply_targeted_replacements(new_path / file_rel, old_name, new_name)
-                output.success(f"Updated {file_rel} ({count} occurrence{'s' if count != 1 else ''})")
-
-    # Step 6: Grep remaining references (warnings only)
-    output.header("Remaining References (in-repo)")
+    # After steps 3+4 the repo is at new_path; for dry-run we read old_path
     repo_path = old_path if dry_run else new_path
-    remaining = _grep_remaining_references(repo_path, old_name)
-    if remaining:
-        output.warn(f"Found {old_name!r} in {len(remaining)} file(s) — manual review needed:")
-        for file_rel, count in remaining:
-            output.detail(f"  {file_rel} ({count} occurrence{'s' if count != 1 else ''})")
-    else:
-        output.success("No remaining references found in repo")
 
-    # Step 7: Cross-repo scan (warnings only)
+    # Step 5: Python package dir rename
+    output.header("Python Package Dir Rename")
+    renamed_pkg = _rename_package_dir(repo_path, old_name, new_name, dry_run)
+    if not renamed_pkg:
+        output.info("No Python package directory found — skipping")
+
+    # Step 6: Workspace file rename
+    output.header("Workspace File Rename")
+    renamed_ws = _rename_workspace_file(repo_path, old_name, new_name, dry_run)
+    if not renamed_ws:
+        output.info("No .code-workspace file found — skipping")
+
+    # Step 7: Global search-replace across all tracked files
+    output.header("Global Search-Replace")
+    modified = _global_search_replace(repo_path, old_name, new_name, dry_run)
+    if not modified:
+        output.success("No references found in tracked files")
+    else:
+        for file_rel, count in modified:
+            label = f"occurrence{'s' if count != 1 else ''}"
+            if dry_run:
+                output.skip(f"Would update {file_rel} ({count} {label})")
+            else:
+                output.success(f"Updated {file_rel} ({count} {label})")
+
+    # Step 8: Regenerate uv.lock
+    output.header("Regenerate uv.lock")
+    _regenerate_lockfile(repo_path, dry_run)
+
+    # Step 9: Cross-repo scan (warnings only)
     output.header("Cross-Repo References (sibling repos)")
     cross_refs = _scan_cross_references(repos_dir, old_name, skip_repo=old_name if dry_run else new_name)
     if cross_refs:
@@ -168,100 +176,145 @@ def _new_remote_url(current_url: str, old_name: str, new_name: str) -> str:
     )
 
 
-def _find_targeted_replacements(repo_path: Path, old_name: str, new_name: str) -> list[tuple[str, int]]:
-    """Return list of (relative_file_path, occurrence_count) for known files needing update."""
-    results = []
+def _python_package_name(name: str) -> str:
+    """Convert repo name to Python package directory name."""
+    return name.replace("-", "_")
 
-    # CLAUDE.md: "## Project: old-name"
-    claude_md = repo_path / "CLAUDE.md"
-    if claude_md.is_file():
-        content = claude_md.read_text(encoding="utf-8", errors="replace")
-        count = content.count(f"## Project: {old_name}")
-        if count:
-            results.append(("CLAUDE.md", count))
 
-    # README.md: alt="old-name", github.com/org/old-name, org%2Fold-name
-    readme = repo_path / "README.md"
-    if readme.is_file():
-        content = readme.read_text(encoding="utf-8", errors="replace")
+def _is_binary_file(path: Path) -> bool:
+    """Return True if the file appears to be binary (contains null bytes in first 8KB)."""
+    try:
+        chunk = path.read_bytes()[:8192]
+        return b"\x00" in chunk
+    except Exception:
+        return True
+
+
+def _rename_package_dir(repo_path: Path, old_name: str, new_name: str, dry_run: bool) -> bool:
+    """Rename Python package dir (flat or src/ layout). Returns True if renamed (or would)."""
+    old_pkg = _python_package_name(old_name)
+    new_pkg = _python_package_name(new_name)
+
+    if old_pkg == new_pkg:
+        return False
+
+    for candidate in [repo_path / old_pkg, repo_path / "src" / old_pkg]:
+        if candidate.is_dir():
+            new_dir = candidate.parent / new_pkg
+            rel = candidate.relative_to(repo_path)
+            if dry_run:
+                output.skip(f"Would rename package dir: {rel} → {new_dir.relative_to(repo_path)}")
+            else:
+                candidate.rename(new_dir)
+                output.success(f"Renamed package dir: {rel} → {new_dir.relative_to(repo_path)}")
+            return True
+
+    return False
+
+
+def _rename_workspace_file(repo_path: Path, old_name: str, new_name: str, dry_run: bool) -> bool:
+    """Rename <old_name>.code-workspace if present. Returns True if renamed (or would)."""
+    old_ws = repo_path / f"{old_name}.code-workspace"
+    if not old_ws.is_file():
+        return False
+
+    new_ws = repo_path / f"{new_name}.code-workspace"
+    if dry_run:
+        output.skip(f"Would rename workspace file: {old_ws.name} → {new_ws.name}")
+    else:
+        old_ws.rename(new_ws)
+        output.success(f"Renamed workspace file: {old_ws.name} → {new_ws.name}")
+    return True
+
+
+def _global_search_replace(
+    repo_path: Path, old_name: str, new_name: str, dry_run: bool
+) -> list[tuple[str, int]]:
+    """Search-replace old_name (hyphenated + underscore forms) across all tracked text files.
+
+    Skips uv.lock (regenerated separately) and binary files.
+    Returns list of (relative_path, replacement_count) for modified files.
+    """
+    old_underscore = _python_package_name(old_name)
+    new_underscore = _python_package_name(new_name)
+
+    tracked = git.ls_files(repo_path)
+    modified = []
+
+    for rel in tracked:
+        if rel == "uv.lock":
+            continue
+        file_path = repo_path / rel
+        if not file_path.is_file():
+            continue
+        if _is_binary_file(file_path):
+            continue
+
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+
+        new_content = content
+        if old_underscore != new_underscore:
+            new_content = new_content.replace(old_underscore, new_underscore)
+        new_content = new_content.replace(old_name, new_name)
+
+        if new_content == content:
+            continue
+
         count = (
-            content.count(f'alt="{old_name}"')
-            + content.count(f"github.com/{_ORG}/{old_name}")
-            + content.count(f"{_ORG}%2F{old_name}")
+            content.count(old_underscore) + content.count(old_name)
+            if old_underscore != old_name
+            else content.count(old_name)
         )
-        if count:
-            results.append(("README.md", count))
 
-    # pyproject.toml: name = "old-name" or name = "old_name"
+        if not dry_run:
+            file_path.write_text(new_content, encoding="utf-8")
+
+        modified.append((rel, count))
+
+    return modified
+
+
+def _regenerate_lockfile(repo_path: Path, dry_run: bool) -> bool:
+    """Delete uv.lock and regenerate it via `uv lock`. Skips if no pyproject.toml."""
     pyproject = repo_path / "pyproject.toml"
-    if pyproject.is_file():
-        content = pyproject.read_text(encoding="utf-8", errors="replace")
-        old_underscore = old_name.replace("-", "_")
-        pattern = re.compile(r'^name\s*=\s*["\'](' + re.escape(old_name) + r'|' + re.escape(old_underscore) + r')["\']', re.MULTILINE)
-        matches = pattern.findall(content)
-        if matches:
-            results.append(("pyproject.toml", len(matches)))
+    if not pyproject.is_file():
+        output.info("No pyproject.toml — skipping lockfile regeneration")
+        return False
 
-    return results
+    lockfile = repo_path / "uv.lock"
+    if dry_run:
+        if lockfile.is_file():
+            output.skip("Would regenerate uv.lock")
+        else:
+            output.info("No uv.lock to regenerate")
+        return lockfile.is_file()
 
+    if lockfile.is_file():
+        lockfile.unlink()
 
-def _apply_targeted_replacements(file_path: Path, old_name: str, new_name: str) -> None:
-    """Apply deterministic replacements to a single known file."""
-    if not file_path.is_file():
-        return
-
-    content = file_path.read_text(encoding="utf-8", errors="replace")
-    rel_name = file_path.name
-
-    if rel_name == "CLAUDE.md":
-        content = content.replace(f"## Project: {old_name}", f"## Project: {new_name}")
-
-    elif rel_name == "README.md":
-        content = content.replace(f'alt="{old_name}"', f'alt="{new_name}"')
-        content = content.replace(f"github.com/{_ORG}/{old_name}", f"github.com/{_ORG}/{new_name}")
-        content = content.replace(f"{_ORG}%2F{old_name}", f"{_ORG}%2F{new_name}")
-
-    elif rel_name == "pyproject.toml":
-        old_underscore = old_name.replace("-", "_")
-        # Replace name = "old-name" or name = "old_name" only in [project] section
-        content = re.sub(
-            r'^(name\s*=\s*["\'])(' + re.escape(old_name) + r'|' + re.escape(old_underscore) + r')(["\'])',
-            rf'\g<1>{new_name}\3',
-            content,
-            flags=re.MULTILINE,
-        )
-
-    file_path.write_text(content, encoding="utf-8")
-
-
-def _grep_remaining_references(repo_path: Path, old_name: str) -> list[tuple[str, int]]:
-    """Grep the renamed repo for any remaining references to old_name (warnings only)."""
     try:
         r = subprocess.run(
-            ["git", "-C", str(repo_path), "grep", "-rl", "--", old_name],
+            ["uv", "lock"],
+            cwd=str(repo_path),
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=120,
         )
-        if r.returncode not in (0, 1):
-            return []
-        files = [f.strip() for f in r.stdout.splitlines() if f.strip()]
-        if not files:
-            return []
-        # Get occurrence counts per file
-        results = []
-        for file_rel in files:
-            file_path = repo_path / file_rel
-            try:
-                text = file_path.read_text(encoding="utf-8", errors="replace")
-                count = text.count(old_name)
-                if count:
-                    results.append((file_rel, count))
-            except Exception:
-                results.append((file_rel, 1))
-        return results
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return []
+        if r.returncode == 0:
+            output.success("uv.lock regenerated")
+            return True
+        else:
+            output.warn(f"uv lock failed (exit {r.returncode}) — lockfile may need manual update")
+            return False
+    except subprocess.TimeoutExpired:
+        output.warn("uv lock timed out — lockfile may need manual update")
+        return False
+    except FileNotFoundError:
+        output.warn("uv not found — lockfile may need manual update")
+        return False
 
 
 def _scan_cross_references(

@@ -9,10 +9,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gitguard.commands.rename import (
-    _apply_targeted_replacements,
-    _find_targeted_replacements,
-    _grep_remaining_references,
+    _global_search_replace,
+    _is_binary_file,
     _new_remote_url,
+    _python_package_name,
+    _regenerate_lockfile,
+    _rename_package_dir,
+    _rename_workspace_file,
     _scan_cross_references,
     _validate,
     run_rename,
@@ -149,136 +152,208 @@ class TestNewRemoteUrl:
 
 
 # ---------------------------------------------------------------------------
-# _find_targeted_replacements
+# _python_package_name
 # ---------------------------------------------------------------------------
 
-class TestFindTargetedReplacements:
-    def test_finds_claude_md(self, tmp_path):
-        repo = tmp_path / "my-repo"
-        repo.mkdir()
-        (repo / "CLAUDE.md").write_text("# CLAUDE.md\n\n## Project: my-repo\n")
-        results = dict(_find_targeted_replacements(repo, "my-repo", "new-repo"))
-        assert "CLAUDE.md" in results
-        assert results["CLAUDE.md"] == 1
+class TestPythonPackageName:
+    def test_hyphenated(self):
+        assert _python_package_name("my-repo") == "my_repo"
 
-    def test_finds_readme(self, tmp_path):
-        repo = tmp_path / "my-repo"
-        repo.mkdir()
-        content = (
-            '[![badge](https://img.shields.io/badge/tsilva%2Fmy-repo-blue)]()\n'
-            '[![CI](https://github.com/tsilva/my-repo/actions)]()\n'
-            '![alt="my-repo"]()\n'
-        )
-        (repo / "README.md").write_text(content)
-        results = dict(_find_targeted_replacements(repo, "my-repo", "new-repo"))
-        assert "README.md" in results
-        assert results["README.md"] >= 1
+    def test_no_hyphens(self):
+        assert _python_package_name("myrepo") == "myrepo"
 
-    def test_finds_pyproject_hyphen(self, tmp_path):
-        repo = tmp_path / "my-repo"
-        repo.mkdir()
-        (repo / "pyproject.toml").write_text('[project]\nname = "my-repo"\nversion = "1.0"\n')
-        results = dict(_find_targeted_replacements(repo, "my-repo", "new-repo"))
-        assert "pyproject.toml" in results
-
-    def test_finds_pyproject_underscore(self, tmp_path):
-        repo = tmp_path / "my-repo"
-        repo.mkdir()
-        (repo / "pyproject.toml").write_text('[project]\nname = "my_repo"\nversion = "1.0"\n')
-        results = dict(_find_targeted_replacements(repo, "my-repo", "new-repo"))
-        assert "pyproject.toml" in results
-
-    def test_skips_pyproject_different_name(self, tmp_path):
-        repo = tmp_path / "my-repo"
-        repo.mkdir()
-        (repo / "pyproject.toml").write_text('[project]\nname = "completely-different"\nversion = "1.0"\n')
-        results = dict(_find_targeted_replacements(repo, "my-repo", "new-repo"))
-        assert "pyproject.toml" not in results
-
-    def test_empty_repo(self, tmp_path):
-        repo = tmp_path / "my-repo"
-        repo.mkdir()
-        results = _find_targeted_replacements(repo, "my-repo", "new-repo")
-        assert results == []
+    def test_multiple_hyphens(self):
+        assert _python_package_name("my-long-repo-name") == "my_long_repo_name"
 
 
 # ---------------------------------------------------------------------------
-# _apply_targeted_replacements
+# _is_binary_file
 # ---------------------------------------------------------------------------
 
-class TestApplyTargetedReplacements:
-    def test_updates_claude_md(self, tmp_path):
-        f = tmp_path / "CLAUDE.md"
-        f.write_text("## Project: my-repo\n\nSome content.\n")
-        _apply_targeted_replacements(f, "my-repo", "new-name")
-        assert "## Project: new-name" in f.read_text()
-        assert "my-repo" not in f.read_text()
+class TestIsBinaryFile:
+    def test_text_file(self, tmp_path):
+        f = tmp_path / "text.txt"
+        f.write_text("Hello, world!\n")
+        assert _is_binary_file(f) is False
 
-    def test_updates_readme_github_url(self, tmp_path):
-        f = tmp_path / "README.md"
-        f.write_text("See https://github.com/tsilva/my-repo for details.\n")
-        _apply_targeted_replacements(f, "my-repo", "new-name")
-        assert "tsilva/new-name" in f.read_text()
-        assert "tsilva/my-repo" not in f.read_text()
+    def test_binary_file(self, tmp_path):
+        f = tmp_path / "binary.bin"
+        f.write_bytes(b"hello\x00world")
+        assert _is_binary_file(f) is True
 
-    def test_updates_readme_percent_encoded(self, tmp_path):
-        f = tmp_path / "README.md"
-        f.write_text("[![badge](https://codecov.io/gh/tsilva%2Fmy-repo)]()\n")
-        _apply_targeted_replacements(f, "my-repo", "new-name")
-        assert "tsilva%2Fnew-name" in f.read_text()
-
-    def test_updates_readme_alt_text(self, tmp_path):
-        f = tmp_path / "README.md"
-        f.write_text('![logo](logo.png) alt="my-repo"\n')
-        _apply_targeted_replacements(f, "my-repo", "new-name")
-        assert 'alt="new-name"' in f.read_text()
-
-    def test_updates_pyproject_name(self, tmp_path):
-        f = tmp_path / "pyproject.toml"
-        f.write_text('[project]\nname = "my-repo"\nversion = "1.0"\n')
-        _apply_targeted_replacements(f, "my-repo", "new-name")
-        content = f.read_text()
-        assert 'name = "new-name"' in content
-
-    def test_updates_pyproject_underscore_name(self, tmp_path):
-        f = tmp_path / "pyproject.toml"
-        f.write_text('[project]\nname = "my_repo"\nversion = "1.0"\n')
-        _apply_targeted_replacements(f, "my-repo", "new-name")
-        content = f.read_text()
-        assert 'name = "new-name"' in content
-
-    def test_nonexistent_file_no_error(self, tmp_path):
-        # Should not raise
-        _apply_targeted_replacements(tmp_path / "nonexistent.md", "old", "new")
+    def test_missing_file(self, tmp_path):
+        f = tmp_path / "nonexistent.txt"
+        assert _is_binary_file(f) is True
 
 
 # ---------------------------------------------------------------------------
-# _grep_remaining_references
+# _rename_package_dir
 # ---------------------------------------------------------------------------
 
-class TestGrepRemainingReferences:
-    def test_finds_references_in_committed_files(self, tmp_path):
+class TestRenamePackageDir:
+    def test_root_dir(self, tmp_path):
+        pkg = tmp_path / "my_repo"
+        pkg.mkdir()
+        result = _rename_package_dir(tmp_path, "my-repo", "new-name", dry_run=False)
+        assert result is True
+        assert (tmp_path / "new_name").is_dir()
+        assert not pkg.exists()
+
+    def test_src_layout(self, tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        pkg = src / "my_repo"
+        pkg.mkdir()
+        result = _rename_package_dir(tmp_path, "my-repo", "new-name", dry_run=False)
+        assert result is True
+        assert (src / "new_name").is_dir()
+        assert not pkg.exists()
+
+    def test_missing_dir(self, tmp_path):
+        result = _rename_package_dir(tmp_path, "my-repo", "new-name", dry_run=False)
+        assert result is False
+
+    def test_same_package_name(self, tmp_path):
+        # When hyphens are the only difference and both map to same pkg name
+        pkg = tmp_path / "myrepo"
+        pkg.mkdir()
+        # old_name "myrepo" and new_name "myrepo" same pkg name → skip
+        result = _rename_package_dir(tmp_path, "myrepo", "myrepo", dry_run=False)
+        assert result is False
+
+    def test_dry_run(self, tmp_path):
+        pkg = tmp_path / "my_repo"
+        pkg.mkdir()
+        result = _rename_package_dir(tmp_path, "my-repo", "new-name", dry_run=True)
+        assert result is True
+        # Directory should NOT be renamed in dry-run
+        assert pkg.exists()
+        assert not (tmp_path / "new_name").exists()
+
+
+# ---------------------------------------------------------------------------
+# _rename_workspace_file
+# ---------------------------------------------------------------------------
+
+class TestRenameWorkspaceFile:
+    def test_found(self, tmp_path):
+        ws = tmp_path / "my-repo.code-workspace"
+        ws.write_text("{}")
+        result = _rename_workspace_file(tmp_path, "my-repo", "new-name", dry_run=False)
+        assert result is True
+        assert (tmp_path / "new-name.code-workspace").is_file()
+        assert not ws.exists()
+
+    def test_missing(self, tmp_path):
+        result = _rename_workspace_file(tmp_path, "my-repo", "new-name", dry_run=False)
+        assert result is False
+
+    def test_dry_run(self, tmp_path):
+        ws = tmp_path / "my-repo.code-workspace"
+        ws.write_text("{}")
+        result = _rename_workspace_file(tmp_path, "my-repo", "new-name", dry_run=True)
+        assert result is True
+        # File should NOT be renamed in dry-run
+        assert ws.exists()
+        assert not (tmp_path / "new-name.code-workspace").exists()
+
+
+# ---------------------------------------------------------------------------
+# _global_search_replace
+# ---------------------------------------------------------------------------
+
+class TestGlobalSearchReplace:
+    def test_replaces_both_patterns(self, tmp_path):
         repo = _make_repo(tmp_path, "my-repo")
-        # Add a file with a reference and commit it
-        (repo / "docs.txt").write_text("See my-repo for more details.\n")
+        # Add a file with both hyphenated and underscore forms
+        f = repo / "config.txt"
+        f.write_text("Repo: my-repo, pkg: my_repo\n")
         subprocess.run(["git", "-C", str(repo), "add", "-A"], capture_output=True)
-        subprocess.run(["git", "-C", str(repo), "commit", "-m", "add docs"], capture_output=True)
-        results = _grep_remaining_references(repo, "my-repo")
-        file_names = [f for f, _ in results]
-        assert any("docs.txt" in f for f in file_names)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "add config"], capture_output=True)
 
-    def test_returns_empty_when_no_references(self, tmp_path):
-        repo = _make_repo(tmp_path, "my-repo")
-        results = _grep_remaining_references(repo, "completely-unique-string-xyz-123")
-        assert results == []
+        modified = _global_search_replace(repo, "my-repo", "new-name", dry_run=False)
+        file_names = [r for r, _ in modified]
+        assert "config.txt" in file_names
+        assert "new-name" in f.read_text()
+        assert "new_name" in f.read_text()
 
-    def test_counts_occurrences(self, tmp_path):
+    def test_skips_uv_lock(self, tmp_path):
         repo = _make_repo(tmp_path, "my-repo")
-        (repo / "multi.txt").write_text("my-repo is great. Use my-repo now. my-repo!\n")
+        lockfile = repo / "uv.lock"
+        lockfile.write_text("# my-repo reference\n")
         subprocess.run(["git", "-C", str(repo), "add", "-A"], capture_output=True)
-        subprocess.run(["git", "-C", str(repo), "commit", "-m", "multi"], capture_output=True)
-        results = dict(_grep_remaining_references(repo, "my-repo"))
-        assert results.get("multi.txt", 0) == 3
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "add lock"], capture_output=True)
+
+        modified = _global_search_replace(repo, "my-repo", "new-name", dry_run=False)
+        file_names = [r for r, _ in modified]
+        assert "uv.lock" not in file_names
+        # Lock file content should be unchanged
+        assert "my-repo" in lockfile.read_text()
+
+    def test_skips_binary(self, tmp_path):
+        repo = _make_repo(tmp_path, "my-repo")
+        binfile = repo / "logo.png"
+        binfile.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00my-repo\x00")
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "add binary"], capture_output=True)
+
+        modified = _global_search_replace(repo, "my-repo", "new-name", dry_run=False)
+        file_names = [r for r, _ in modified]
+        assert "logo.png" not in file_names
+
+    def test_dry_run(self, tmp_path):
+        repo = _make_repo(tmp_path, "my-repo")
+        f = repo / "info.txt"
+        f.write_text("my-repo is great\n")
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", "add info"], capture_output=True)
+
+        modified = _global_search_replace(repo, "my-repo", "new-name", dry_run=True)
+        file_names = [r for r, _ in modified]
+        assert "info.txt" in file_names
+        # File should NOT be modified in dry-run
+        assert "my-repo" in f.read_text()
+
+    def test_no_references(self, tmp_path):
+        repo = _make_repo(tmp_path, "my-repo")
+        modified = _global_search_replace(repo, "completely-unique-xyz-999", "new-name", dry_run=False)
+        assert modified == []
+
+
+# ---------------------------------------------------------------------------
+# _regenerate_lockfile
+# ---------------------------------------------------------------------------
+
+class TestRegenerateLockfile:
+    def test_no_pyproject(self, tmp_path):
+        result = _regenerate_lockfile(tmp_path, dry_run=False)
+        assert result is False
+
+    def test_dry_run_with_lockfile(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        (tmp_path / "uv.lock").write_text("# lock\n")
+        result = _regenerate_lockfile(tmp_path, dry_run=True)
+        assert result is True
+        # Lock file should still exist (dry-run)
+        assert (tmp_path / "uv.lock").is_file()
+
+    def test_mock_uv_lock(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        old_lock = tmp_path / "uv.lock"
+        old_lock.write_text("# old lock\n")
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            result = _regenerate_lockfile(tmp_path, dry_run=False)
+
+        assert result is True
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
+        assert call_args[0][0] == ["uv", "lock"]
+        # Old lock file should have been deleted before calling uv lock
+        # (can't check this directly, but we verify the call happened)
 
 
 # ---------------------------------------------------------------------------

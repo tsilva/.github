@@ -26,6 +26,7 @@ Skills in `.claude/skills/` provide AI-dependent maintenance operations:
 
 - `maintain-repos` — orchestrator: uses `gitguard` CLI for audit/fix, delegates to AI skills for remaining issues
 - `bootstrap-repo` — bootstraps a new repo from a template to full compliance (create, clone, placeholders, logo, README, gitguard)
+- `rename-repo` — full rename orchestration: runs `gitguard rename` for all deterministic steps, then regenerates logo + README and commits
 
 ## Workflows
 
@@ -118,14 +119,14 @@ gitguard report taglines|tracked-ignored|branches [repos-dir] [-f PAT]
 gitguard rename <old-name> <new-name> [repos-dir] [-n|--dry-run]
 ```
 
-Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, applies targeted replacements in known files (CLAUDE.md, README.md, pyproject.toml), then warns about remaining references and cross-repo references.
+Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, renames the Python package directory and `.code-workspace` file if present, performs a global search-replace of the old name across all tracked text files, regenerates `uv.lock` if `pyproject.toml` exists, then warns about cross-repo references.
 
 ### Package Structure
 
 - `src/gitguard/cli.py` — argparse entry point
 - `src/gitguard/engine.py` — RuleRunner: single-pass check → fix → verify per rule
 - `src/gitguard/commands/commit.py` — interactive AI-assisted commit & push
-- `src/gitguard/commands/rename.py` — repo rename (GitHub + local + remote + targeted file replacements)
+- `src/gitguard/commands/rename.py` — repo rename (GitHub + local + remote + package dir + workspace file + global search-replace + uv.lock regen)
 - `src/gitguard/repo.py` — Repo dataclass with lazy-cached properties
 - `src/gitguard/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
 - `src/gitguard/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
