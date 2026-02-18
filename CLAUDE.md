@@ -115,15 +115,17 @@ uv tool install gitguard  # global CLI
 gitguard [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category CAT]
 gitguard commit [repos-dir] [-f PAT] [-n|--dry-run]
 gitguard report taglines|tracked-ignored|branches [repos-dir] [-f PAT]
+gitguard rename <old-name> <new-name> [repos-dir] [-n|--dry-run]
 ```
 
-Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing.
+Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, applies targeted replacements in known files (CLAUDE.md, README.md, pyproject.toml), then warns about remaining references and cross-repo references.
 
 ### Package Structure
 
 - `src/gitguard/cli.py` — argparse entry point
 - `src/gitguard/engine.py` — RuleRunner: single-pass check → fix → verify per rule
 - `src/gitguard/commands/commit.py` — interactive AI-assisted commit & push
+- `src/gitguard/commands/rename.py` — repo rename (GitHub + local + remote + targeted file replacements)
 - `src/gitguard/repo.py` — Repo dataclass with lazy-cached properties
 - `src/gitguard/rules/` — one file per compliance rule (24 total), auto-discovered via `pkgutil`
 - `src/gitguard/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome

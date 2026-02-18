@@ -13,7 +13,7 @@ _REPOS_DIR_HELP = (
     f"(default: ${_REPOS_DIR_ENV} env var)"
 )
 
-_SUBCOMMANDS = {"commit", "report"}
+_SUBCOMMANDS = {"commit", "report", "rename"}
 
 
 def _resolve_repos_dir(args: argparse.Namespace) -> None:
@@ -70,6 +70,19 @@ def _build_report_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_rename_parser() -> argparse.ArgumentParser:
+    """Build parser for the rename subcommand."""
+    parser = argparse.ArgumentParser(
+        prog="gitguard rename",
+        description="Rename a repo: GitHub, local folder, git remote, and in-repo file references",
+    )
+    parser.add_argument("old_name", help="Current repository name")
+    parser.add_argument("new_name", help="New repository name")
+    parser.add_argument("repos_dir", nargs="?", default=None, type=Path, help=_REPOS_DIR_HELP)
+    parser.add_argument("-n", "--dry-run", dest="dry_run", action="store_true", help="Show what would change without modifying anything")
+    return parser
+
+
 def main(argv: list[str] | None = None) -> None:
     if argv is None:
         argv = sys.argv[1:]
@@ -104,6 +117,19 @@ def main(argv: list[str] | None = None) -> None:
             from gitguard.commands.report import run_report
 
             sys.exit(run_report(args.report_type, args.repos_dir, args.filter_pattern))
+
+        elif command == "rename":
+            parser = _build_rename_parser()
+            args = parser.parse_args(rest)
+            _resolve_repos_dir(args)
+
+            if not args.repos_dir.is_dir():
+                print(f"Error: Directory does not exist: {args.repos_dir}", file=sys.stderr)
+                sys.exit(1)
+
+            from gitguard.commands.rename import run_rename
+
+            sys.exit(run_rename(args.old_name, args.new_name, args.repos_dir, args.dry_run))
 
     else:
         # Default: maintain (single-pass check+fix)

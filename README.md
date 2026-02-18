@@ -82,6 +82,10 @@ gitguard commit ~/repos/tsilva --dry-run   # show dirty repos only
 # Report — generate reports
 gitguard report taglines ~/repos/tsilva
 gitguard report tracked-ignored ~/repos/tsilva
+
+# Rename — rename a repo on GitHub + local + remote + file references
+gitguard rename old-name new-name ~/repos/tsilva
+gitguard rename old-name new-name ~/repos/tsilva --dry-run
 ```
 
 ### Adding a New Rule

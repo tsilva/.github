@@ -118,3 +118,12 @@ def clone_repo(nwo: str, target_dir: Union[str, Path]) -> subprocess.CompletedPr
         text=True,
         timeout=120,
     )
+
+
+def get_remote_url(repo_path: Path, remote: str = "origin") -> str:
+    r = run_git(repo_path, "remote", "get-url", remote)
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def set_remote_url(repo_path: Path, remote: str, url: str) -> bool:
+    return run_git(repo_path, "remote", "set-url", remote, url).returncode == 0

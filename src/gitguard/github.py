@@ -143,3 +143,31 @@ def set_repo_description(github_repo: str, description: str) -> bool:
         return r.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return False
+
+
+def repo_exists(nwo: str) -> bool:
+    """Return True if the GitHub repo owner/name exists and is accessible."""
+    try:
+        r = subprocess.run(
+            ["gh", "repo", "view", nwo],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return r.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def rename_repo(old_nwo: str, new_name: str) -> bool:
+    """Rename a GitHub repo from old_nwo (owner/old-name) to new_name."""
+    try:
+        r = subprocess.run(
+            ["gh", "repo", "rename", new_name, "--repo", old_nwo, "--yes"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return r.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
