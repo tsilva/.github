@@ -23,6 +23,7 @@ def test_all_rules_discovered():
         "PII_SCAN", "REPO_DESCRIPTION",
         "CLI_VERSION", "CLI_PYPI_READY", "CLI_RELEASE_WORKFLOW", "CLI_BUILD_BACKEND",
         "CLI_EDITABLE_INSTALL",
+        "CLAUDE_GIT_WRITE",
     }
     assert rule_ids == expected
 
@@ -297,3 +298,72 @@ def test_readme_license_fix(tmp_repo):
     assert outcome.status == "fixed"
     content = (tmp_repo / "README.md").read_text()
     assert "## License" in content
+
+
+def _write_settings(repo_path, allow):
+    settings_dir = repo_path / ".claude"
+    settings_dir.mkdir(exist_ok=True)
+    data = {"permissions": {"allow": allow}, "sandbox": {"enabled": True}}
+    (settings_dir / "settings.local.json").write_text(json.dumps(data, indent=2) + "\n")
+
+
+def test_claude_git_write_skip_no_settings(bare_repo):
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.claude_git_write import ClaudeGitWriteRule
+    result = ClaudeGitWriteRule().check(repo)
+    assert result.status == Status.SKIP
+
+
+def test_claude_git_write_pass_clean_settings(tmp_repo):
+    _write_settings(tmp_repo, ["Bash(git add:*)", "Bash(echo:*)"])
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.claude_git_write import ClaudeGitWriteRule
+    result = ClaudeGitWriteRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_claude_git_write_fail_commit_pattern(tmp_repo):
+    _write_settings(tmp_repo, ["Bash(git add:*)", "Bash(git commit:*)"])
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.claude_git_write import ClaudeGitWriteRule
+    result = ClaudeGitWriteRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "Bash(git commit:*)" in result.message
+
+
+def test_claude_git_write_fail_push_pattern(tmp_repo):
+    _write_settings(tmp_repo, ["Bash(git push:*)"])
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.claude_git_write import ClaudeGitWriteRule
+    result = ClaudeGitWriteRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "Bash(git push:*)" in result.message
+
+
+def test_claude_git_write_fail_broad_git_pattern(tmp_repo):
+    _write_settings(tmp_repo, ["Bash(git:*)"])
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.claude_git_write import ClaudeGitWriteRule
+    result = ClaudeGitWriteRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "Bash(git:*)" in result.message
+
+
+def test_claude_git_write_fix_removes_flagged_preserves_others(tmp_repo):
+    _write_settings(tmp_repo, ["Bash(git add:*)", "Bash(git commit:*)", "Bash(git push:*)", "Bash(echo:*)"])
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.claude_git_write import ClaudeGitWriteRule
+    rule = ClaudeGitWriteRule()
+    assert rule.check(repo).status == Status.FAIL
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    data = json.loads((tmp_repo / ".claude" / "settings.local.json").read_text())
+    allow = data["permissions"]["allow"]
+    assert "Bash(git commit:*)" not in allow
+    assert "Bash(git push:*)" not in allow
+    assert "Bash(git add:*)" in allow
+    assert "Bash(echo:*)" in allow
+
+    assert rule.check(repo).status == Status.PASS

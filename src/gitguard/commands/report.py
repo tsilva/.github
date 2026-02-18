@@ -66,6 +66,10 @@ def _report_branches(repos_dir: Path, filter_pattern: str) -> int:
         print("No git repositories found.", file=sys.stderr)
         return 0
 
+    output.info(f"Fetching {len(repos)} repos...")
+    for repo in repos:
+        git.fetch_all(repo.path)
+
     multi = 0
     single = 0
 
