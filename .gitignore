@@ -1,5 +1,6 @@
 # >>> MANAGED BY GITGUARD - DO NOT EDIT THIS SECTION <<<
 .claude/*.local.json
+.claude/*.local.json.bak
 .claude-sandbox.json
 .env
 .env.*
@@ -42,13 +43,4 @@ dist/
 build/
 logs/
 *.log
-.spyderproject
-.spyproject
-.worktrees/
-*.bak
 # >>> END MANAGED <<<
-
-# Project-specific rules
-!.env*example
-!wheels/*.whl
-*.whl

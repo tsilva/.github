@@ -3,6 +3,7 @@
 
 # Claude Code
 .claude/*.local.json
+.claude/*.local.json.bak
 .claude-sandbox.json
 
 # Secrets and credentials
