@@ -42,11 +42,13 @@ dist/
 build/
 logs/
 *.log
+.spyderproject
+.spyproject
+.worktrees/
+*.bak
 # >>> END MANAGED <<<
 
 # Project-specific rules
 !.env*example
 !wheels/*.whl
 *.whl
-.claude/*.local.json.bak
-.worktrees/
