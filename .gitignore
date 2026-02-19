@@ -1,5 +1,7 @@
 !.env*example
+!.env.example
 !.vscode/settings.json
+!wheels/*.whl
 *.egg-info/
 *.key
 *.log
@@ -8,6 +10,7 @@
 *.pyc
 *.swo
 *.swp
+*.whl
 .claude/*.local.json
 .claude/*.local.json.bak
 .DS_Store
@@ -27,5 +30,3 @@ node_modules/
 secrets.json
 Thumbs.db
 venv/
-*.whl
-!wheels/*.whl
