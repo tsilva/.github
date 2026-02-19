@@ -7,7 +7,15 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-ESSENTIAL_GITIGNORE = [".env", ".DS_Store", "node_modules/", "__pycache__/", "*.pyc", ".venv/"]
+ESSENTIAL_GITIGNORE = [
+    ".env",
+    ".DS_Store",
+    "node_modules/",
+    "__pycache__/",
+    "*.pyc",
+    ".venv/",
+    ".gitguard/logo.json",
+]
 
 
 def has_license_file(repo_path: Path) -> bool:

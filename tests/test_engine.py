@@ -4,15 +4,16 @@ from gitguard.engine import RuleRunner
 
 
 def test_run_dry_run_audit(repos_dir):
-    runner = RuleRunner(repos_dir=repos_dir)
+    runner = RuleRunner(target=repos_dir, single_repo=False)
     exit_code = runner.run(dry_run=True)
     assert exit_code in (0, 1)
 
 
 def test_run_json(repos_dir, capsys):
-    runner = RuleRunner(repos_dir=repos_dir)
+    runner = RuleRunner(target=repos_dir, single_repo=False)
     runner.run(dry_run=True, json_output=True)
     import json
+
     captured = capsys.readouterr()
     report = json.loads(captured.out)
     assert "repos" in report
@@ -22,25 +23,27 @@ def test_run_json(repos_dir, capsys):
 
 
 def test_run_rule_filter(repos_dir):
-    runner = RuleRunner(repos_dir=repos_dir, rule_filter="README_EXISTS")
+    runner = RuleRunner(
+        target=repos_dir, rule_filter="README_EXISTS", single_repo=False
+    )
     exit_code = runner.run(dry_run=True)
     assert exit_code == 0
 
 
 def test_run_no_repos(tmp_path):
-    runner = RuleRunner(repos_dir=tmp_path)
+    runner = RuleRunner(target=tmp_path, single_repo=False)
     exit_code = runner.run(dry_run=True)
     assert exit_code == 0
 
 
 def test_run_dry_run(repos_dir):
-    runner = RuleRunner(repos_dir=repos_dir)
+    runner = RuleRunner(target=repos_dir, single_repo=False)
     exit_code = runner.run(dry_run=True)
     assert exit_code in (0, 1)
 
 
 def test_run_maintain(repos_dir):
-    runner = RuleRunner(repos_dir=repos_dir)
+    runner = RuleRunner(target=repos_dir, single_repo=False)
     exit_code = runner.run()
     assert exit_code in (0, 1)
 

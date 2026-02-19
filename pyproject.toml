@@ -10,6 +10,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Tiago Silva" }]
+dependencies = [
+    "requests>=2.31.0",
+    "pillow>=10.0.0",
+]
 
 [project.scripts]
 gitguard = "gitguard.cli:main"

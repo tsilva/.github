@@ -49,7 +49,9 @@ class RepoResult:
 
     @property
     def manual(self) -> list[RuleResult]:
-        return [r for r in self.results if r.status in ("manual", "failed", "fix_failed")]
+        return [
+            r for r in self.results if r.status in ("manual", "failed", "fix_failed")
+        ]
 
     @property
     def all_ok(self) -> bool:
@@ -61,15 +63,17 @@ class RuleRunner:
 
     def __init__(
         self,
-        repos_dir: Path,
+        target: Path,
         filter_pattern: str = "",
         rule_filter: str | None = None,
         category_filter: str | None = None,
+        single_repo: bool = False,
     ):
-        self.repos_dir = repos_dir
+        self.target = target
         self.filter_pattern = filter_pattern
         self.rule_filter = rule_filter
         self.category_filter = category_filter
+        self.single_repo = single_repo
         self.rules = discover_rules()
 
     def _filter_rules(self) -> list[Rule]:
@@ -88,14 +92,53 @@ class RuleRunner:
         json_output: bool = False,
     ) -> int:
         """Single-pass: for each repo, check each rule and optionally fix."""
+
+        # Single-repo mode: run on just the target repo
+        if self.single_repo:
+            if not json_output:
+                mode = "Maintain (dry run)" if dry_run else "Maintain"
+                output.banner(mode)
+                output.info(f"Mode: Single repository")
+                output.info(f"Repository: {self.target}")
+                print("", file=sys.stderr)
+
+            repo = Repo(path=self.target)
+            all_rules = self._filter_rules()
+            main_rules = [r for r in all_rules if not r.archived_only]
+
+            # Prefetch workflow status if repo has workflows
+            if repo.has_workflows:
+                github_repo = repo.github_repo
+                if github_repo:
+                    if not json_output:
+                        output.step("Prefetching workflow status\u2026")
+                    repo._prefetch["workflow_conclusions"] = get_workflow_conclusions(
+                        github_repo
+                    )
+
+            total_work = len(main_rules)
+            progress = ProgressBar(total_work) if not json_output else None
+
+            rr = self._process_single_repo(repo, main_rules, dry_run, progress)
+
+            if progress:
+                progress.clear()
+
+            if json_output:
+                return self._output_json([repo], [rr], sync=None)
+
+            return self._output_summary([rr], dry_run=dry_run)
+
+        # Multi-repo mode: original behavior
         if not json_output:
             output.step("Discovering repositories\u2026")
         org_metadata = fetch_org_repo_metadata("tsilva")
         non_archived = set(org_metadata)
+        all_local: set[str] = set()
         if non_archived:
             all_local = {
                 child.name
-                for child in self.repos_dir.iterdir()
+                for child in self.target.iterdir()
                 if child.is_dir() and (child / ".git").is_dir()
             }
             archived_names = all_local - non_archived
@@ -121,7 +164,7 @@ class RuleRunner:
                     errors_lock = threading.Lock()
 
                     def _clone_one(name: str) -> None:
-                        target = self.repos_dir / name
+                        target = self.target / name
                         try:
                             r = git.clone_repo(f"tsilva/{name}", target)
                             if r.returncode == 0:
@@ -130,7 +173,9 @@ class RuleRunner:
                                 cloned.append(name)
                             else:
                                 if not json_output:
-                                    output.error(f"{name} (clone failed: {r.stderr.strip()})")
+                                    output.error(
+                                        f"{name} (clone failed: {r.stderr.strip()})"
+                                    )
                                 with errors_lock:
                                     clone_errors.append(name)
                         except Exception as e:
@@ -142,7 +187,9 @@ class RuleRunner:
                     with ThreadPoolExecutor(max_workers=min(8, len(to_clone))) as pool:
                         list(pool.map(_clone_one, to_clone))
 
-        repos = Repo.discover(self.repos_dir, self.filter_pattern, archived_names=archived_names)
+        repos = Repo.discover(
+            self.target, self.filter_pattern, archived_names=archived_names
+        )
         all_rules = self._filter_rules()
         main_rules = [r for r in all_rules if not r.archived_only]
         archived_rules = [r for r in all_rules if r.archived_only]
@@ -164,7 +211,11 @@ class RuleRunner:
         wf_repos = [r for r in repos if r.has_workflows and r.github_repo]
 
         def _fetch_wf(repo: Repo) -> None:
-            repo._prefetch["workflow_conclusions"] = get_workflow_conclusions(repo.github_repo)  # type: ignore[arg-type]
+            gh_repo = repo.github_repo
+            if gh_repo:
+                repo._prefetch["workflow_conclusions"] = get_workflow_conclusions(
+                    gh_repo
+                )
 
         with ThreadPoolExecutor(max_workers=8) as pool:
             pool.map(_fetch_wf, wf_repos)
@@ -175,78 +226,40 @@ class RuleRunner:
             for name in sorted(archived_names):
                 if self.filter_pattern and self.filter_pattern not in name:
                     continue
-                path = self.repos_dir / name
+                path = self.target / name
                 if path.is_dir() and (path / ".git").is_dir():
                     ar = Repo(path=path)
                     ar._prefetch["github_repo"] = f"tsilva/{name}"
                     archived_repos.append(ar)
 
-        total_work = len(repos) * len(main_rules) + len(archived_repos) * len(archived_rules)
+        total_work = len(repos) * len(main_rules) + len(archived_repos) * len(
+            archived_rules
+        )
         progress = ProgressBar(total_work) if not json_output else None
-
-        def _process_repo(repo: Repo, rules: list[Rule]) -> RepoResult:
-            rr = RepoResult(name=repo.name, path=str(repo.path))
-            if not dry_run and not repo.is_dirty:
-                try:
-                    git.fetch_all(repo.path)
-                except Exception:
-                    pass
-            try:
-                for rule in rules:
-                    if progress:
-                        progress.update(repo.name, rule.id, "Checking")
-
-                    if not rule.applies_to(repo):
-                        rr.results.append(RuleResult(rule.id, "skip"))
-                        continue
-
-                    result = rule.check(repo)
-
-                    if result.status == Status.PASS:
-                        rr.results.append(RuleResult(rule.id, "pass"))
-                        continue
-
-                    if result.status == Status.SKIP:
-                        rr.results.append(RuleResult(rule.id, "skip"))
-                        continue
-
-                    # Rule failed — attempt fix
-                    if progress:
-                        progress.set_phase(repo.name, rule.id, "Fixing")
-                    outcome = rule.fix(repo, dry_run=dry_run)
-
-                    if outcome.status == FixOutcome.FIXED:
-                        if dry_run:
-                            rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
-                        else:
-                            if progress:
-                                progress.set_phase(repo.name, rule.id, "Verifying")
-                            verify = rule.check(repo)
-                            if verify.status == Status.PASS:
-                                rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
-                            else:
-                                rr.results.append(RuleResult(rule.id, "fix_failed", verify.message))
-                    elif outcome.status == FixOutcome.ALREADY_OK:
-                        rr.results.append(RuleResult(rule.id, "pass"))
-                    elif outcome.status == FixOutcome.MANUAL:
-                        rr.results.append(RuleResult(rule.id, "manual", result.message))
-                    elif outcome.status == FixOutcome.SKIPPED:
-                        rr.results.append(RuleResult(rule.id, "manual", outcome.message))
-                    else:
-                        rr.results.append(RuleResult(rule.id, "failed", outcome.message))
-            except Exception as exc:
-                rr.results.append(RuleResult("INTERNAL", "failed", str(exc)))
-            return rr
 
         max_workers = min(8, len(repos))
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            repo_results = list(pool.map(lambda r: _process_repo(r, main_rules), repos))
+            repo_results = list(
+                pool.map(
+                    lambda r: self._process_single_repo(
+                        r, main_rules, dry_run, progress
+                    ),
+                    repos,
+                )
+            )
 
         # Archived-only pass
         if archived_repos and archived_rules:
             max_workers_archived = min(8, len(archived_repos))
             with ThreadPoolExecutor(max_workers=max_workers_archived) as pool:
-                archived_results = list(pool.map(lambda r: _process_repo(r, archived_rules), archived_repos))
+                archived_results = list(
+                    pool.map(
+                        lambda r: self._process_single_repo(
+                            r, archived_rules, dry_run, progress
+                        ),
+                        archived_repos,
+                    )
+                )
             repo_results.extend(archived_results)
 
         if progress:
@@ -259,6 +272,67 @@ class RuleRunner:
 
         return self._output_summary(repo_results, dry_run=dry_run)
 
+    def _process_single_repo(
+        self, repo: Repo, rules: list[Rule], dry_run: bool, progress: ProgressBar | None
+    ) -> RepoResult:
+        """Process a single repo against a list of rules."""
+        rr = RepoResult(name=repo.name, path=str(repo.path))
+        if not dry_run and not repo.is_dirty:
+            try:
+                git.fetch_all(repo.path)
+            except Exception:
+                pass
+        try:
+            for rule in rules:
+                if progress:
+                    progress.update(repo.name, rule.id, "Checking")
+
+                if not rule.applies_to(repo):
+                    rr.results.append(RuleResult(rule.id, "skip"))
+                    continue
+
+                result = rule.check(repo)
+
+                if result.status == Status.PASS:
+                    rr.results.append(RuleResult(rule.id, "pass"))
+                    continue
+
+                if result.status == Status.SKIP:
+                    rr.results.append(RuleResult(rule.id, "skip"))
+                    continue
+
+                # Rule failed — attempt fix
+                if progress:
+                    progress.set_phase(repo.name, rule.id, "Fixing")
+                outcome = rule.fix(repo, dry_run=dry_run)
+
+                if outcome.status == FixOutcome.FIXED:
+                    if dry_run:
+                        rr.results.append(RuleResult(rule.id, "fixed", outcome.message))
+                    else:
+                        if progress:
+                            progress.set_phase(repo.name, rule.id, "Verifying")
+                        verify = rule.check(repo)
+                        if verify.status == Status.PASS:
+                            rr.results.append(
+                                RuleResult(rule.id, "fixed", outcome.message)
+                            )
+                        else:
+                            rr.results.append(
+                                RuleResult(rule.id, "fix_failed", verify.message)
+                            )
+                elif outcome.status == FixOutcome.ALREADY_OK:
+                    rr.results.append(RuleResult(rule.id, "pass"))
+                elif outcome.status == FixOutcome.MANUAL:
+                    rr.results.append(RuleResult(rule.id, "manual", result.message))
+                elif outcome.status == FixOutcome.SKIPPED:
+                    rr.results.append(RuleResult(rule.id, "manual", outcome.message))
+                else:
+                    rr.results.append(RuleResult(rule.id, "failed", outcome.message))
+        except Exception as exc:
+            rr.results.append(RuleResult("INTERNAL", "failed", str(exc)))
+        return rr
+
     def _output_summary(
         self,
         repo_results: list[RepoResult],
@@ -268,7 +342,11 @@ class RuleRunner:
         """Print compact per-repo summary with expanded details for failures."""
         mode = "Maintain (dry run)" if dry_run else "Maintain"
         output.banner(mode)
-        output.info(f"Directory: {self.repos_dir}")
+        if self.single_repo:
+            output.info(f"Mode: Single repository")
+            output.info(f"Repository: {self.target}")
+        else:
+            output.info(f"Directory: {self.target}")
         output.info(f"Repositories: {len(repo_results)}")
         print("", file=sys.stderr)
 
@@ -288,29 +366,54 @@ class RuleRunner:
                 if fixed:
                     parts.append(f"{fixed} fixed")
                 parts.append(f"{len(manual)} manual")
-                print(f"{output.BG_DARK}{output.RED}\u2717 {output.NC}{output.BG_DARK}{rr.name:<28} {', '.join(parts)}{output.NC}", file=sys.stderr)
+                print(
+                    f"{output.BG_DARK}{output.RED}\u2717 {output.NC}{output.BG_DARK}{rr.name:<28} {', '.join(parts)}{output.NC}",
+                    file=sys.stderr,
+                )
                 for i, m in enumerate(manual):
-                    connector = "└" if i == len(manual) - 1 else "├"
-                    output.detail(f"{output.DIM}{connector}{output.NC} {output.RED}{m.rule_id}{output.NC}: {m.message}")
+                    connector = "\u2514" if i == len(manual) - 1 else "\u251c"
+                    output.detail(
+                        f"{output.DIM}{connector}{output.NC} {output.RED}{m.rule_id}{output.NC}: {m.message}"
+                    )
             elif fixed:
                 needed_fixes += 1
-                print(f"{output.BG_DARK}{output.GREEN}\u2713 {output.NC}{output.BG_DARK}{rr.name:<28} {passed}/{total} passed ({fixed} fixed){output.NC}", file=sys.stderr)
+                print(
+                    f"{output.BG_DARK}{output.GREEN}\u2713 {output.NC}{output.BG_DARK}{rr.name:<28} {passed}/{total} passed ({fixed} fixed){output.NC}",
+                    file=sys.stderr,
+                )
             else:
                 all_passing += 1
-                print(f"{output.BG_DARK}{output.GREEN}\u2713 {output.NC}{output.BG_DARK}{rr.name:<28} {total}/{total} passed{output.NC}", file=sys.stderr)
+                print(
+                    f"{output.BG_DARK}{output.GREEN}\u2713 {output.NC}{output.BG_DARK}{rr.name:<28} {total}/{total} passed{output.NC}",
+                    file=sys.stderr,
+                )
 
         # Summary footer
         output.header("Results")
         print(f"  Repos:        {len(repo_results)}", file=sys.stderr)
-        print(f"  All passing:  {output.GREEN}{all_passing}{output.NC}", file=sys.stderr)
+        print(
+            f"  All passing:  {output.GREEN}{all_passing}{output.NC}", file=sys.stderr
+        )
         if needed_fixes:
-            print(f"  Needed fixes: {output.YELLOW}{needed_fixes}{output.NC} (all auto-fixed)", file=sys.stderr)
+            print(
+                f"  Needed fixes: {output.YELLOW}{needed_fixes}{output.NC} (all auto-fixed)",
+                file=sys.stderr,
+            )
         if needs_work:
-            print(f"  Needs work:   {output.RED}{needs_work}{output.NC} (have remaining manual issues)", file=sys.stderr)
+            print(
+                f"  Needs work:   {output.RED}{needs_work}{output.NC} (have remaining manual issues)",
+                file=sys.stderr,
+            )
 
         return 1 if needs_work > 0 else 0
 
-    def _output_json(self, repos: list[Repo], repo_results: list[RepoResult], *, sync: dict | None = None) -> int:
+    def _output_json(
+        self,
+        repos: list[Repo],
+        repo_results: list[RepoResult],
+        *,
+        sync: dict | None = None,
+    ) -> int:
         """Output JSON report to stdout."""
         github_user = ""
         if repos and repos[0].github_repo:
@@ -331,27 +434,31 @@ class RuleRunner:
                     status_str = "failed"
                     total_failed += 1
                 total_checks += 1
-                checks.append({
-                    "check": r.rule_id,
-                    "status": status_str,
-                    "message": r.message,
-                })
+                checks.append(
+                    {
+                        "check": r.rule_id,
+                        "status": status_str,
+                        "message": r.message,
+                    }
+                )
 
-            json_repos.append({
-                "repo": rr.name,
-                "path": rr.path,
-                "checks": checks,
-                "summary": {
-                    "passed": rr.passed + rr.fixed,
-                    "failed": len(rr.manual),
-                },
-            })
+            json_repos.append(
+                {
+                    "repo": rr.name,
+                    "path": rr.path,
+                    "checks": checks,
+                    "summary": {
+                        "passed": rr.passed + rr.fixed,
+                        "failed": len(rr.manual),
+                    },
+                }
+            )
 
         pass_rate = round(total_passed * 100 / total_checks) if total_checks > 0 else 0
 
         report = {
             "audit_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "repos_dir": str(self.repos_dir),
+            "repos_dir": str(self.target),
             "github_user": github_user,
             "repos_count": len(repo_results),
             "repos": json_repos,

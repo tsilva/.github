@@ -45,6 +45,7 @@ def test_all_rules_discovered():
         "CLI_BUILD_BACKEND",
         "CLI_EDITABLE_INSTALL",
         "CLAUDE_GIT_WRITE",
+        "CLAUDE_MD_SYMLINK",
     }
     assert rule_ids == expected
 
@@ -511,7 +512,9 @@ def test_gitignore_fix_preserves_negation_order(tmp_repo):
     _, result_repo_lines = _parse_sectioned(result_content)
 
     # Negation order must be preserved
-    wheel_idx = next(i for i, l in enumerate(result_repo_lines) if l.strip() == "wheels/*")
+    wheel_idx = next(
+        i for i, l in enumerate(result_repo_lines) if l.strip() == "wheels/*"
+    )
     negation_idx = next(
         i for i, l in enumerate(result_repo_lines) if l.strip() == "!wheels/stable.whl"
     )
@@ -594,4 +597,6 @@ def test_tracked_ignored_respects_negation(tmp_repo):
         capture_output=True,
         text=True,
     )
-    assert ".env.example" in tracked.stdout, ".env.example should remain tracked after fix()"
+    assert ".env.example" in tracked.stdout, (
+        ".env.example should remain tracked after fix()"
+    )

@@ -15,16 +15,35 @@ OPENROUTER_BASE_URL = "http://127.0.0.1:8082/api"
 OPENROUTER_MODEL = "anthropic/claude-opus-4.5"
 
 
-def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
-    repos = Repo.discover(repos_dir, filter_pattern)
+def run_commit(
+    target: Path, filter_pattern: str | None, dry_run: bool, single_repo: bool = False
+) -> int:
+    if single_repo:
+        # Single repo mode
+        repo = Repo(path=target)
+        repos = [repo]
+        output.banner("Commit")
+        output.info(f"Mode: Single repository")
+        output.info(f"Repository: {target}")
+        print("", file=sys.stderr)
+    else:
+        # Multi-repo mode
+        repos = Repo.discover(target, filter_pattern or "")
+        output.banner("Commit")
+        output.info(f"Mode: Multiple repositories")
+        output.info(f"Directory: {target}")
+        print("", file=sys.stderr)
 
     if not repos:
         output.info("No git repositories found.")
         return 0
 
-    output.info(f"Scanning repos for uncommitted changes in: {repos_dir}")
+    output.info(f"Scanning repos for uncommitted changes...")
     if dry_run:
-        print(f"{output.YELLOW}DRY RUN MODE - no changes will be made{output.NC}", file=sys.stderr)
+        print(
+            f"{output.YELLOW}DRY RUN MODE - no changes will be made{output.NC}",
+            file=sys.stderr,
+        )
     print("", file=sys.stderr)
 
     # Phase 1: Find dirty repos and repos with unpushed commits (parallel)
@@ -73,7 +92,10 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
         print("", file=sys.stderr)
 
         if dry_run:
-            print(f"{output.DIM}(would generate AI message and prompt for approval){output.NC}", file=sys.stderr)
+            print(
+                f"{output.DIM}(would generate AI message and prompt for approval){output.NC}",
+                file=sys.stderr,
+            )
             continue
 
         # Get full diff for AI context (not displayed)
@@ -86,17 +108,19 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
             context += f"\n\nNew untracked files:\n{untracked}"
 
         try:
-            body = json.dumps({
-                "model": OPENROUTER_MODEL,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Generate a concise git commit message (one line, no quotes, no prefix like 'feat:') for these changes. Only output the message, nothing else.",
-                    },
-                    {"role": "user", "content": context},
-                ],
-                "max_tokens": 100,
-            }).encode()
+            body = json.dumps(
+                {
+                    "model": OPENROUTER_MODEL,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "Generate a concise git commit message (one line, no quotes, no prefix like 'feat:') for these changes. Only output the message, nothing else.",
+                        },
+                        {"role": "user", "content": context},
+                    ],
+                    "max_tokens": 100,
+                }
+            ).encode()
             req = urllib.request.Request(
                 f"{OPENROUTER_BASE_URL}/v1/chat/completions",
                 data=body,
@@ -111,13 +135,28 @@ def run_commit(repos_dir: Path, filter_pattern: str, dry_run: bool) -> int:
 
         # Prompt for approval
         if msg:
-            print(f"  {output.CYAN}{repo.name}{output.NC} → {output.BOLD}{msg}{output.NC}", file=sys.stderr)
+            print(
+                f"  {output.CYAN}{repo.name}{output.NC} \u2192 {output.BOLD}{msg}{output.NC}",
+                file=sys.stderr,
+            )
             print("", file=sys.stderr)
-            print("  [a]pprove / [e]dit / [s]kip / [q]uit? ", end="", file=sys.stderr, flush=True)
+            print(
+                "  [a]pprove / [e]dit / [s]kip / [q]uit? ",
+                end="",
+                file=sys.stderr,
+                flush=True,
+            )
         else:
-            print(f"  {output.DIM}(no AI message available){output.NC}", file=sys.stderr)
+            print(
+                f"  {output.DIM}(no AI message available){output.NC}", file=sys.stderr
+            )
             print("", file=sys.stderr)
-            print("  [e]nter message / [s]kip / [q]uit? ", end="", file=sys.stderr, flush=True)
+            print(
+                "  [e]nter message / [s]kip / [q]uit? ",
+                end="",
+                file=sys.stderr,
+                flush=True,
+            )
 
         try:
             choice = input().strip().lower()

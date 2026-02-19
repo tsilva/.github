@@ -10,18 +10,37 @@ from gitguard.repo import Repo
 from gitguard.tagline import extract_tagline
 
 
-def run_report(report_type: str, repos_dir: Path, filter_pattern: str) -> int:
+def run_report(
+    report_type: str,
+    target: Path,
+    filter_pattern: str | None,
+    single_repo: bool = False,
+) -> int:
     if report_type == "taglines":
-        return _report_taglines(repos_dir, filter_pattern)
+        return _report_taglines(target, filter_pattern, single_repo)
     elif report_type == "tracked-ignored":
-        return _report_tracked_ignored(repos_dir, filter_pattern)
+        return _report_tracked_ignored(target, filter_pattern, single_repo)
     elif report_type == "branches":
-        return _report_branches(repos_dir, filter_pattern)
+        return _report_branches(target, filter_pattern, single_repo)
     return 1
 
 
-def _report_taglines(repos_dir: Path, filter_pattern: str) -> int:
-    repos = Repo.discover(repos_dir, filter_pattern)
+def _report_taglines(
+    target: Path, filter_pattern: str | None, single_repo: bool
+) -> int:
+    if single_repo:
+        repos = [Repo(path=target)]
+        output.banner("Taglines Report")
+        output.info(f"Mode: Single repository")
+        output.info(f"Repository: {target}")
+        print("", file=sys.stderr)
+    else:
+        repos = Repo.discover(target, filter_pattern or "")
+        output.banner("Taglines Report")
+        output.info(f"Mode: Multiple repositories")
+        output.info(f"Directory: {target}")
+        print("", file=sys.stderr)
+
     if not repos:
         print("No git repositories found.", file=sys.stderr)
         return 0
@@ -41,7 +60,10 @@ def _report_taglines(repos_dir: Path, filter_pattern: str) -> int:
         max_name_width = max(max_name_width, len(repo.name))
 
     # Print header
-    print(f"{output.BLUE}{'Repo':<{max_name_width}}{output.NC}   {output.BLUE}Tagline{output.NC}", file=sys.stderr)
+    print(
+        f"{output.BLUE}{'Repo':<{max_name_width}}{output.NC}   {output.BLUE}Tagline{output.NC}",
+        file=sys.stderr,
+    )
     print("\u2500" * (max_name_width + 3 + 60), file=sys.stderr)
 
     with_tagline = 0
@@ -49,19 +71,42 @@ def _report_taglines(repos_dir: Path, filter_pattern: str) -> int:
 
     for name, tagline in data:
         if tagline in ("(no tagline)", "(no README)"):
-            print(f"{name:<{max_name_width}}   {output.DIM}{tagline}{output.NC}", file=sys.stderr)
+            print(
+                f"{name:<{max_name_width}}   {output.DIM}{tagline}{output.NC}",
+                file=sys.stderr,
+            )
             without_tagline += 1
         else:
-            print(f"{output.GREEN}{name:<{max_name_width}}{output.NC}   {tagline}", file=sys.stderr)
+            print(
+                f"{output.GREEN}{name:<{max_name_width}}{output.NC}   {tagline}",
+                file=sys.stderr,
+            )
             with_tagline += 1
 
     print("", file=sys.stderr)
-    print(f"Summary: {with_tagline} with tagline, {without_tagline} without", file=sys.stderr)
+    print(
+        f"Summary: {with_tagline} with tagline, {without_tagline} without",
+        file=sys.stderr,
+    )
     return 0
 
 
-def _report_branches(repos_dir: Path, filter_pattern: str) -> int:
-    repos = Repo.discover(repos_dir, filter_pattern)
+def _report_branches(
+    target: Path, filter_pattern: str | None, single_repo: bool
+) -> int:
+    if single_repo:
+        repos = [Repo(path=target)]
+        output.banner("Branches Report")
+        output.info(f"Mode: Single repository")
+        output.info(f"Repository: {target}")
+        print("", file=sys.stderr)
+    else:
+        repos = Repo.discover(target, filter_pattern or "")
+        output.banner("Branches Report")
+        output.info(f"Mode: Multiple repositories")
+        output.info(f"Directory: {target}")
+        print("", file=sys.stderr)
+
     if not repos:
         print("No git repositories found.", file=sys.stderr)
         return 0
@@ -84,17 +129,34 @@ def _report_branches(repos_dir: Path, filter_pattern: str) -> int:
             output.detail(f"  {b}")
 
     print("", file=sys.stderr)
-    print(f"Summary: {multi} repos with multiple branches, {single} with single branch", file=sys.stderr)
+    print(
+        f"Summary: {multi} repos with multiple branches, {single} with single branch",
+        file=sys.stderr,
+    )
     return 0
 
 
-def _report_tracked_ignored(repos_dir: Path, filter_pattern: str) -> int:
-    repos = Repo.discover(repos_dir, filter_pattern)
+def _report_tracked_ignored(
+    target: Path, filter_pattern: str | None, single_repo: bool
+) -> int:
+    if single_repo:
+        repos = [Repo(path=target)]
+        output.banner("Tracked-Ignored Report")
+        output.info(f"Mode: Single repository")
+        output.info(f"Repository: {target}")
+        print("", file=sys.stderr)
+    else:
+        repos = Repo.discover(target, filter_pattern or "")
+        output.banner("Tracked-Ignored Report")
+        output.info(f"Mode: Multiple repositories")
+        output.info(f"Directory: {target}")
+        print("", file=sys.stderr)
+
     if not repos:
         print("No git repositories found.", file=sys.stderr)
         return 0
 
-    output.info(f"Checking for tracked files that should be ignored in: {repos_dir}")
+    output.info(f"Checking for tracked files that should be ignored...")
     print("", file=sys.stderr)
 
     clean = 0
@@ -119,8 +181,11 @@ def _report_tracked_ignored(repos_dir: Path, filter_pattern: str) -> int:
 
     if warnings > 0:
         print("", file=sys.stderr)
-        print("To fix tracked files that should be ignored, run in each repo:", file=sys.stderr)
-        print('  git rm --cached <file>', file=sys.stderr)
+        print(
+            "To fix tracked files that should be ignored, run in each repo:",
+            file=sys.stderr,
+        )
+        print("  git rm --cached <file>", file=sys.stderr)
         print('  git commit -m "Stop tracking ignored file"', file=sys.stderr)
         return 1
     return 0
