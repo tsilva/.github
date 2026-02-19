@@ -1,4 +1,4 @@
-!.env.example
+!.env*example
 !.vscode/settings.json
 *.egg-info/
 *.key
@@ -27,3 +27,5 @@ node_modules/
 secrets.json
 Thumbs.db
 venv/
+*.whl
+!wheels/*.whl
