@@ -160,7 +160,7 @@ def test_gitignore_fix_incomplete(tmp_repo):
 
 def test_gitignore_fix_missing(bare_repo):
     repo = Repo(path=bare_repo)
-    from gitguard.rules.gitignore import GitignoreRule
+    from gitguard.rules.gitignore import GitignoreRule, MANAGED_START, MANAGED_END
 
     rule = GitignoreRule()
     result = rule.check(repo)
@@ -172,6 +172,8 @@ def test_gitignore_fix_missing(bare_repo):
     assert (bare_repo / ".gitignore").is_file()
     content = (bare_repo / ".gitignore").read_text()
     assert ".env" in content
+    assert MANAGED_START in content
+    assert MANAGED_END in content
 
 
 def test_sandbox_fix(bare_repo):
@@ -295,29 +297,36 @@ def test_gitignore_fix_deduplicates_user_rules(tmp_repo):
     from gitguard.rules.gitignore import (
         GitignoreRule,
         _load_gitignore_global,
-        _build_content,
+        _parse_sectioned,
+        MANAGED_START,
+        MANAGED_END,
     )
 
     global_rules = _load_gitignore_global()
     assert global_rules, "gitignore.global must be loadable for this test"
 
-    # Write a .gitignore with user rules that overlap with managed rules
+    # Write a legacy .gitignore with user rules that overlap with managed rules
     user_section = "# My custom rules\n.env\n.DS_Store\n__pycache__/\n*.pyc\n\n# Custom project rule\nmy-custom-dir/\n"
     (tmp_repo / ".gitignore").write_text(user_section)
 
     repo = Repo(path=tmp_repo)
     rule = GitignoreRule()
 
-    # fix() should deduplicate and include all global rules
+    # fix() should migrate to sectioned format and deduplicate
     outcome = rule.fix(repo)
     assert outcome.status == "fixed"
 
     content = (tmp_repo / ".gitignore").read_text()
     lines = content.splitlines()
 
-    # All global rules should be present
-    assert ".env" in content
-    assert "__pycache__/" in content
+    # Managed section markers present
+    assert MANAGED_START in content
+    assert MANAGED_END in content
+
+    # All global rules present in managed section
+    managed_rules, repo_lines = _parse_sectioned(content)
+    assert ".env" in managed_rules
+    assert "__pycache__/" in managed_rules
 
     # Count occurrences of duplicated rules — each should appear exactly once
     env_count = sum(1 for l in lines if l.strip() == ".env")
@@ -331,11 +340,7 @@ def test_gitignore_fix_deduplicates_user_rules(tmp_repo):
 
     # Custom rule that is NOT in managed block should be preserved
     assert "my-custom-dir/" in content
-
-    # No comments should remain (clean format)
-    assert "#" not in content
-    # No blank lines
-    assert all(line.strip() for line in lines)
+    assert "my-custom-dir/" in repo_lines
 
 
 def test_readme_license_fix(tmp_repo):
@@ -455,3 +460,138 @@ def test_archived_marker_is_archived_only():
     from gitguard.rules.archived_marker import ArchivedMarkerRule
 
     assert ArchivedMarkerRule.archived_only is True
+
+
+def test_gitignore_check_allows_repo_specific_rules(tmp_repo):
+    """Rules below the managed section don't cause check() to fail."""
+    from gitguard.rules.gitignore import (
+        GitignoreRule,
+        _build_sectioned_content,
+        _load_gitignore_global,
+    )
+
+    global_rules = _load_gitignore_global()
+    assert global_rules, "gitignore.global must be loadable for this test"
+
+    # Build a .gitignore with repo-specific rules in the repo section
+    content = _build_sectioned_content(global_rules, ["wheels/*", "!wheels/stable.whl"])
+    (tmp_repo / ".gitignore").write_text(content)
+
+    repo = Repo(path=tmp_repo)
+    result = GitignoreRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_gitignore_fix_preserves_negation_order(tmp_repo):
+    """Repo-specific negation patterns stay in original order after fix()."""
+    from gitguard.rules.gitignore import (
+        GitignoreRule,
+        _build_sectioned_content,
+        _load_gitignore_global,
+        _parse_sectioned,
+    )
+
+    global_rules = _load_gitignore_global()
+    assert global_rules, "gitignore.global must be loadable for this test"
+
+    repo_lines = ["# Wheels", "wheels/*", "!wheels/stable.whl"]
+
+    # Write a .gitignore with a stale managed section (only one rule) so fix()
+    # actually rewrites the managed section while preserving repo_lines
+    stale_content = _build_sectioned_content(["*.pyc"], repo_lines)
+    (tmp_repo / ".gitignore").write_text(stale_content)
+
+    repo = Repo(path=tmp_repo)
+    rule = GitignoreRule()
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    result_content = (tmp_repo / ".gitignore").read_text()
+    _, result_repo_lines = _parse_sectioned(result_content)
+
+    # Negation order must be preserved
+    wheel_idx = next(i for i, l in enumerate(result_repo_lines) if l.strip() == "wheels/*")
+    negation_idx = next(
+        i for i, l in enumerate(result_repo_lines) if l.strip() == "!wheels/stable.whl"
+    )
+    assert wheel_idx < negation_idx, "wheels/* must come before !wheels/stable.whl"
+
+
+def test_gitignore_fix_legacy_migration(tmp_repo):
+    """A flat .gitignore (no markers) gets migrated to sectioned format."""
+    from gitguard.rules.gitignore import (
+        GitignoreRule,
+        _load_gitignore_global,
+        _parse_sectioned,
+        MANAGED_START,
+        MANAGED_END,
+    )
+
+    global_rules = _load_gitignore_global()
+    assert global_rules, "gitignore.global must be loadable for this test"
+
+    # Write legacy format: all global rules + a custom repo rule
+    legacy_content = "\n".join(global_rules) + "\ncustom-dir/\n"
+    (tmp_repo / ".gitignore").write_text(legacy_content)
+
+    repo = Repo(path=tmp_repo)
+    rule = GitignoreRule()
+
+    # check() should fail with migration message
+    result = rule.check(repo)
+    assert result.status == Status.FAIL
+    assert "migration" in result.message
+
+    # fix() should migrate
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    content = (tmp_repo / ".gitignore").read_text()
+    assert MANAGED_START in content
+    assert MANAGED_END in content
+
+    # custom-dir/ preserved in repo section
+    assert "custom-dir/" in content
+    managed_rules, repo_lines = _parse_sectioned(content)
+    assert managed_rules == global_rules
+    assert "custom-dir/" in repo_lines
+
+    # check() should now pass
+    result = rule.check(repo)
+    assert result.status == Status.PASS
+
+
+def test_tracked_ignored_respects_negation(tmp_repo):
+    """.env.example is NOT untracked when !.env.example negation is in .gitignore."""
+    from gitguard.rules.tracked_ignored import TrackedIgnoredRule
+
+    # The tmp_repo fixture builds .gitignore from gitignore.global which includes
+    # `.env.*` AND `!.env.example`, so .env.example should NOT be truly ignored.
+    # Create and commit .env.example to the repo
+    (tmp_repo / ".env.example").write_text("DB_URL=postgresql://localhost/mydb\n")
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "add", ".env.example"],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "commit", "-m", "add env example"],
+        capture_output=True,
+        check=True,
+    )
+
+    repo = Repo(path=tmp_repo)
+    rule = TrackedIgnoredRule()
+
+    # Run fix() — even if check() detects a spurious hit from git ls-files -i,
+    # fix() must not untrack .env.example because git check-ignore will say it's not ignored.
+    rule.fix(repo)
+
+    # .env.example must still be tracked
+    tracked = subprocess.run(
+        ["git", "-C", str(tmp_repo), "ls-files", ".env.example"],
+        capture_output=True,
+        text=True,
+    )
+    assert ".env.example" in tracked.stdout, ".env.example should remain tracked after fix()"

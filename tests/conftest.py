@@ -31,14 +31,18 @@ def tmp_repo(tmp_path: Path) -> Path:
     (repo / "README.md").write_text(
         "# test-repo\n\nA test repository for unit testing.\n\n## Installation\n\nRun `pip install test-repo`.\n\n## Usage\n\nJust use it.\n\n## License\n\nMIT\n"
     )
-    from gitguard.rules.gitignore import _load_gitignore_global, _build_content
+    from gitguard.rules.gitignore import (
+        _load_gitignore_global,
+        _build_sectioned_content,
+        MANAGED_START,
+    )
 
     global_rules = _load_gitignore_global()
     if global_rules:
-        (repo / ".gitignore").write_text(_build_content(global_rules))
+        (repo / ".gitignore").write_text(_build_sectioned_content(global_rules, []))
     else:
         (repo / ".gitignore").write_text(
-            ".env\n.DS_Store\nnode_modules/\n__pycache__/\n*.pyc\n.venv/\n"
+            f"{MANAGED_START}\n.env\n.DS_Store\nnode_modules/\n__pycache__/\n*.pyc\n.venv/\n# >>> END MANAGED <<<\n"
         )
     (repo / "LICENSE").write_text("MIT License\n\nCopyright (c) 2024 Test\n")
     (repo / "CLAUDE.md").write_text("# CLAUDE.md\n\n## Project: test-repo\n")

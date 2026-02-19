@@ -20,10 +20,24 @@ class TrackedIgnoredRule(Rule):
         if not files:
             return FixOutcome(FixOutcome.ALREADY_OK)
 
-        if dry_run:
-            return FixOutcome(FixOutcome.FIXED, f"Would untrack {len(files)} file(s)")
+        # Validate each candidate with git check-ignore --no-index to handle negation
+        # patterns. git ls-files -i has known issues with negation (e.g. !.env.example
+        # is still returned even though the file should not be ignored). --no-index
+        # skips the index so we get pure pattern-matching semantics: exit code 0 means
+        # "truly ignored by gitignore rules" and 1 means "not ignored (negation applies)".
+        confirmed = [
+            f
+            for f in files
+            if run_git(repo.path, "check-ignore", "--no-index", "-q", f).returncode == 0
+        ]
 
-        r = run_git(repo.path, "rm", "--cached", "--", *files)
+        if not confirmed:
+            return FixOutcome(FixOutcome.ALREADY_OK)
+
+        if dry_run:
+            return FixOutcome(FixOutcome.FIXED, f"Would untrack {len(confirmed)} file(s)")
+
+        r = run_git(repo.path, "rm", "--cached", "--", *confirmed)
         if r.returncode != 0:
             return FixOutcome(FixOutcome.FAILED, r.stderr.strip())
-        return FixOutcome(FixOutcome.FIXED, f"Untracked {len(files)} file(s)")
+        return FixOutcome(FixOutcome.FIXED, f"Untracked {len(confirmed)} file(s)")
