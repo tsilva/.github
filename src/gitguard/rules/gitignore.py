@@ -42,16 +42,16 @@ def _parse_rules(content: str) -> list[str]:
 
 
 def _build_content(rules: list[str]) -> str:
-    """Build clean gitignore content: deduped, sorted, no comments, no blank lines."""
-    # Deduplicate while preserving order for consistent output
+    """Build clean gitignore content: deduped, preserving order, no comments, no blank lines."""
+    # Deduplicate while preserving order - order matters for gitignore negation patterns
     seen = set()
     unique = []
     for rule in rules:
         if rule not in seen:
             seen.add(rule)
             unique.append(rule)
-    # Sort alphabetically for consistency
-    unique.sort(key=lambda x: x.lower())
+    # Note: We intentionally do NOT sort here because gitignore patterns are order-dependent.
+    # For example, `.env.*` must come before `!.env.example` for the negation to work.
     return "\n".join(unique) + "\n"
 
 
@@ -118,8 +118,11 @@ class GitignoreRule(Rule):
         content = gitignore.read_text(encoding="utf-8", errors="replace")
         existing_rules = _parse_rules(content)
 
-        # Combine existing and expected rules, then dedupe and sort
-        combined = existing_rules + [r for r in all_rules if r not in existing_rules]
+        # Combine existing and expected rules, preserving order from all_rules (global)
+        # Order matters for gitignore - e.g., `.env.*` must come before `!.env.example`
+        # Keep global rules in their canonical order, append any extra repo-specific rules at the end
+        extra_rules = [r for r in existing_rules if r not in all_rules]
+        combined = all_rules + extra_rules
         new_content = _build_content(combined)
 
         # Check if content would change
@@ -142,6 +145,8 @@ class GitignoreRule(Rule):
 
         try:
             gitignore.write_text(new_content, encoding="utf-8")
-            return FixOutcome(FixOutcome.FIXED, "Synced gitignore (deduped, sorted)")
+            return FixOutcome(
+                FixOutcome.FIXED, "Synced gitignore (deduped, order preserved)"
+            )
         except Exception as e:
             return FixOutcome(FixOutcome.FAILED, str(e))
