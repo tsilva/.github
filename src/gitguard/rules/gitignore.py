@@ -5,9 +5,6 @@ from pathlib import Path
 from gitguard.rules import Category, CheckResult, FixOutcome, Rule, Status
 from gitguard.rules._helpers import ESSENTIAL_GITIGNORE
 
-_MANAGED_HEADER = "# Managed by tsilva/.github"
-_MANAGED_SUBHEADER = "# Do not remove - synced automatically"
-
 # Load full rules from gitignore.global if available
 _GITIGNORE_GLOBAL: list[str] | None = None
 
@@ -34,75 +31,28 @@ def _load_gitignore_global() -> list[str]:
     return []
 
 
-def _parse_managed_rules(content: str) -> list[str]:
-    """Extract non-comment, non-blank rules from managed block(s)."""
+def _parse_rules(content: str) -> list[str]:
+    """Extract non-comment, non-blank rules from content."""
     rules = []
-    in_managed = False
     for line in content.splitlines():
-        if line.strip() == _MANAGED_HEADER:
-            in_managed = True
-            continue
-        if not in_managed:
-            continue
         stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        rules.append(stripped)
+        if stripped and not stripped.startswith("#"):
+            rules.append(stripped)
     return rules
 
 
-def _strip_managed_blocks(content: str) -> str:
-    """Return content with all managed block(s) removed, trailing blank lines stripped."""
-    lines = []
-    in_managed = False
-    for line in content.splitlines():
-        if line.strip() == _MANAGED_HEADER:
-            in_managed = True
-            continue
-        if in_managed:
-            continue
-        lines.append(line)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    return "\n".join(lines) + "\n" if lines else ""
-
-
-def _build_managed_block(rules: list[str]) -> str:
-    """Build a managed block string from rules."""
-    return f"{_MANAGED_HEADER}\n{_MANAGED_SUBHEADER}\n" + "\n".join(rules) + "\n"
-
-
-def _dedup_user_rules(user_content: str, managed_rules: list[str]) -> str:
-    """Remove lines from user content that exactly match a managed rule.
-
-    Keeps comments, blank lines, and rules not in the managed set.
-    Collapses runs of 3+ consecutive blank lines down to 2.
-    Strips trailing blank lines.
-    """
-    managed_set = {r.strip() for r in managed_rules}
-    kept: list[str] = []
-    for line in user_content.splitlines():
-        stripped = line.strip()
-        if stripped == "" or stripped.startswith("#") or stripped not in managed_set:
-            kept.append(line)
-
-    # Collapse runs of 3+ consecutive blank lines down to 2
-    result: list[str] = []
-    blank_count = 0
-    for line in kept:
-        if not line.strip():
-            blank_count += 1
-            if blank_count <= 2:
-                result.append(line)
-        else:
-            blank_count = 0
-            result.append(line)
-
-    # Strip trailing blank lines
-    while result and not result[-1].strip():
-        result.pop()
-
-    return "\n".join(result) + "\n" if result else ""
+def _build_content(rules: list[str]) -> str:
+    """Build clean gitignore content: deduped, sorted, no comments, no blank lines."""
+    # Deduplicate while preserving order for consistent output
+    seen = set()
+    unique = []
+    for rule in rules:
+        if rule not in seen:
+            seen.add(rule)
+            unique.append(rule)
+    # Sort alphabetically for consistency
+    unique.sort(key=lambda x: x.lower())
+    return "\n".join(unique) + "\n"
 
 
 class GitignoreRule(Rule):
@@ -124,69 +74,74 @@ class GitignoreRule(Rule):
             if pattern.rstrip("/").lower() not in content_lower:
                 missing.append(pattern)
         if missing:
-            return CheckResult(Status.FAIL, f"Missing {len(missing)} patterns: {' '.join(missing)}")
+            return CheckResult(
+                Status.FAIL, f"Missing {len(missing)} patterns: {' '.join(missing)}"
+            )
 
-        # Check managed block matches gitignore.global
+        # Check all expected rules are present (from gitignore.global)
         global_rules = _load_gitignore_global()
         if global_rules:
-            managed = set(_parse_managed_rules(content))
+            existing = set(_parse_rules(content))
             expected = set(global_rules)
-            if managed != expected:
-                stale = sorted(managed - expected)
-                added = sorted(expected - managed)
+            if existing != expected:
+                stale = sorted(existing - expected)
+                added = sorted(expected - existing)
                 parts = []
                 if stale:
                     parts.append(f"stale: {' '.join(stale)}")
                 if added:
                     parts.append(f"missing: {' '.join(added)}")
-                return CheckResult(Status.FAIL, f"Managed block out of sync ({'; '.join(parts)})")
+                return CheckResult(
+                    Status.FAIL, f"Rules out of sync ({'; '.join(parts)})"
+                )
 
         return CheckResult(Status.PASS)
 
     def fix(self, repo, *, dry_run=False):
         gitignore = repo.path / ".gitignore"
         all_rules = _load_gitignore_global() or ESSENTIAL_GITIGNORE
-        managed_block = _build_managed_block(all_rules)
 
         if not gitignore.is_file():
             if dry_run:
-                return FixOutcome(FixOutcome.FIXED, "Would create .gitignore with managed patterns")
+                return FixOutcome(
+                    FixOutcome.FIXED, "Would create .gitignore with managed patterns"
+                )
             try:
-                gitignore.write_text(managed_block, encoding="utf-8")
-                return FixOutcome(FixOutcome.FIXED, f"Created .gitignore ({len(all_rules)} patterns)")
+                new_content = _build_content(all_rules)
+                gitignore.write_text(new_content, encoding="utf-8")
+                return FixOutcome(
+                    FixOutcome.FIXED, f"Created .gitignore ({len(all_rules)} patterns)"
+                )
             except Exception as e:
                 return FixOutcome(FixOutcome.FAILED, str(e))
 
         content = gitignore.read_text(encoding="utf-8", errors="replace")
-        managed_rules = _parse_managed_rules(content)
+        existing_rules = _parse_rules(content)
 
-        if set(managed_rules) == set(all_rules) and managed_rules:
-            # Check if user section has duplicates that need cleaning
-            repo_content = _strip_managed_blocks(content)
-            deduped = _dedup_user_rules(repo_content, all_rules)
-            if deduped == repo_content:
-                return FixOutcome(FixOutcome.ALREADY_OK)
+        # Combine existing and expected rules, then dedupe and sort
+        combined = existing_rules + [r for r in all_rules if r not in existing_rules]
+        new_content = _build_content(combined)
+
+        # Check if content would change
+        if _build_content(existing_rules) == new_content and set(existing_rules) == set(
+            all_rules
+        ):
+            return FixOutcome(FixOutcome.ALREADY_OK)
 
         if dry_run:
-            stale = set(managed_rules) - set(all_rules)
-            new = set(all_rules) - set(managed_rules)
+            stale = set(existing_rules) - set(all_rules)
+            new = set(all_rules) - set(existing_rules)
             parts = []
             if stale:
                 parts.append(f"remove {len(stale)} stale")
             if new:
                 parts.append(f"add {len(new)} new")
-            if not managed_rules:
-                parts.append(f"add {len(all_rules)} rules")
-            return FixOutcome(FixOutcome.FIXED, f"Would sync managed block ({', '.join(parts)})")
+            return FixOutcome(
+                FixOutcome.FIXED, f"Would sync gitignore ({', '.join(parts)})"
+            )
 
         try:
-            repo_content = _strip_managed_blocks(content)
-            repo_content = _dedup_user_rules(repo_content, all_rules)
-            if repo_content:
-                new_content = repo_content + "\n" + managed_block
-            else:
-                new_content = managed_block
             gitignore.write_text(new_content, encoding="utf-8")
-            return FixOutcome(FixOutcome.FIXED, "Synced managed gitignore block")
+            return FixOutcome(FixOutcome.FIXED, "Synced gitignore (deduped, sorted)")
         except Exception as e:
             return FixOutcome(FixOutcome.FAILED, str(e))
