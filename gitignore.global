@@ -3,17 +3,28 @@
 
 # Claude Code
 .claude/*.local.json
+.claude-sandbox.json
 
 # Secrets and credentials
 .env
 .env.*
 !.env.example
+.env.*.local
+.env.local
 *.pem
 *.key
 *.p12
+*.pfx
+*.gpg
+*.secret
+*-credentials.json
+service-account*.json
 credentials.json
 secrets.json
 .secrets/
+.aws/
+.ssh/
+config.local.*
 
 # macOS
 .DS_Store
@@ -21,20 +32,25 @@ Thumbs.db
 
 # IDE
 .idea/
-.vscode/*
-!.vscode/settings.json
+.vscode/
 *.swp
 *.swo
+*.code-workspace
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 venv/
+env/
 *.egg-info/
 
 # Node.js
 node_modules/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Build artifacts
 dist/
