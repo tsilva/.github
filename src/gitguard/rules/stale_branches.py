@@ -2,8 +2,8 @@
 
 import time
 
-from gitguard.git import branch_ages, merged_branches
-from gitguard.rules import Category, CheckResult, Rule, Status
+from gitguard.git import branch_ages, delete_branch, merged_branches
+from gitguard.rules import Category, CheckResult, FixOutcome, Rule, Status
 
 _90_DAYS = 90 * 86400
 
@@ -36,3 +36,27 @@ class StaleBranchesRule(Rule):
         if not issues:
             return CheckResult(Status.PASS)
         return CheckResult(Status.FAIL, "; ".join(issues))
+
+    def fix(self, repo, *, dry_run=False):
+        merged = merged_branches(repo.path)
+        if not merged:
+            return FixOutcome(FixOutcome.ALREADY_OK)
+
+        if dry_run:
+            names = ", ".join(merged)
+            return FixOutcome(FixOutcome.FIXED, f"Would delete {len(merged)} merged branch(es): {names}")
+
+        deleted = []
+        failed = []
+        for branch in merged:
+            if delete_branch(repo.path, branch):
+                deleted.append(branch)
+            else:
+                failed.append(branch)
+
+        if failed:
+            names = ", ".join(failed)
+            return FixOutcome(FixOutcome.FAILED, f"Could not delete: {names}")
+
+        names = ", ".join(deleted)
+        return FixOutcome(FixOutcome.FIXED, f"Deleted {len(deleted)} merged branch(es): {names}")

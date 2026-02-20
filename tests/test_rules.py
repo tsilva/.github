@@ -46,6 +46,8 @@ def test_all_rules_discovered():
         "CLI_EDITABLE_INSTALL",
         "CLAUDE_GIT_WRITE",
         "CLAUDE_MD_SYMLINK",
+        "TESTS_EXIST",
+        "RUFF_CONFIG",
     }
     assert rule_ids == expected
 
@@ -600,3 +602,250 @@ def test_tracked_ignored_respects_negation(tmp_repo):
     assert ".env.example" in tracked.stdout, (
         ".env.example should remain tracked after fix()"
     )
+
+
+# --- README_EXISTS fix() ---
+
+def test_readme_exists_fix_creates_scaffold(bare_repo):
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.readme_exists import ReadmeExistsRule
+
+    rule = ReadmeExistsRule()
+    assert rule.check(repo).status == Status.FAIL
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+    assert (bare_repo / "README.md").is_file()
+    content = (bare_repo / "README.md").read_text()
+    assert "# bare-repo" in content
+    assert "TODO" in content
+
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_readme_exists_fix_dry_run(bare_repo):
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.readme_exists import ReadmeExistsRule
+
+    outcome = ReadmeExistsRule().fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    assert not (bare_repo / "README.md").is_file()
+
+
+# --- README_CI_BADGE fix() ---
+
+def test_readme_ci_badge_fix_inserts_badge(tmp_repo):
+    # Add CI workflow
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    (wf_dir / "ci.yml").write_text("on: push\njobs:\n  test:\n    uses: tsilva/.github/.github/workflows/test.yml@main\n")
+
+    # Write a README with heading but no badge
+    (tmp_repo / "README.md").write_text("# test-repo\n\nA repo without a badge.\n\n## License\n\nMIT\n")
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.readme_content import ReadmeCiBadgeRule
+
+    rule = ReadmeCiBadgeRule()
+    # Mark has_ci_workflow
+    repo._cache["has_ci_workflow"] = True
+    repo._cache["github_repo"] = "tsilva/test-repo"
+
+    assert rule.check(repo).status == Status.FAIL
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+    content = (tmp_repo / "README.md").read_text()
+    assert "ci.yml/badge.svg" in content
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_readme_ci_badge_fix_dry_run(tmp_repo):
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    (wf_dir / "ci.yml").write_text("on: push\n")
+
+    (tmp_repo / "README.md").write_text("# test-repo\n\nNo badge.\n\n## License\n\nMIT\n")
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.readme_content import ReadmeCiBadgeRule
+
+    repo._cache["has_ci_workflow"] = True
+    repo._cache["github_repo"] = "tsilva/test-repo"
+
+    outcome = ReadmeCiBadgeRule().fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    content = (tmp_repo / "README.md").read_text()
+    assert "badge.svg" not in content
+
+
+# --- STALE_BRANCHES fix() ---
+
+def test_stale_branches_fix_deletes_merged(tmp_repo):
+    # Create and merge a branch
+    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "-b", "feature-x"], capture_output=True, check=True)
+    (tmp_repo / "feature.txt").write_text("feature")
+    subprocess.run(["git", "-C", str(tmp_repo), "add", "-A"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(tmp_repo), "commit", "-m", "feature"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "main"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(tmp_repo), "merge", "feature-x"], capture_output=True, check=True)
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.stale_branches import StaleBranchesRule
+
+    rule = StaleBranchesRule()
+    result = rule.check(repo)
+    assert result.status == Status.FAIL
+    assert "feature-x" in result.message
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+    assert "feature-x" in outcome.message
+
+    # Branch should be gone
+    result = rule.check(repo)
+    assert "feature-x" not in (result.message or "")
+
+
+def test_stale_branches_fix_dry_run(tmp_repo):
+    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "-b", "feature-y"], capture_output=True, check=True)
+    (tmp_repo / "fy.txt").write_text("fy")
+    subprocess.run(["git", "-C", str(tmp_repo), "add", "-A"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(tmp_repo), "commit", "-m", "fy"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "main"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(tmp_repo), "merge", "feature-y"], capture_output=True, check=True)
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.stale_branches import StaleBranchesRule
+
+    outcome = StaleBranchesRule().fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    assert "feature-y" in outcome.message
+    # Branch should still exist
+    from gitguard.git import has_branch
+    assert has_branch(tmp_repo, "feature-y")
+
+
+# --- DEFAULT_BRANCH fix() ---
+
+def test_default_branch_fix_renames_master(tmp_path):
+    repo_path = tmp_path / "master-repo"
+    repo_path.mkdir()
+    subprocess.run(["git", "init", str(repo_path), "--initial-branch=master"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.name", "Test"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(repo_path), "config", "user.email", "t@t.com"], capture_output=True, check=True)
+    (repo_path / ".gitkeep").write_text("")
+    subprocess.run(["git", "-C", str(repo_path), "add", "-A"], capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(repo_path), "commit", "-m", "init"], capture_output=True, check=True)
+
+    repo = Repo(path=repo_path)
+    from gitguard.rules.default_branch import DefaultBranchRule
+    from gitguard.git import has_branch
+
+    rule = DefaultBranchRule()
+    assert rule.check(repo).status == Status.FAIL
+    assert has_branch(repo_path, "master")
+    assert not has_branch(repo_path, "main")
+
+    # Dry run — no actual rename
+    outcome = rule.fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    assert has_branch(repo_path, "master")
+
+
+# --- TESTS_EXIST rule ---
+
+def test_tests_exist_skip_non_cli(tmp_repo):
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.tests_exist import TestsExistRule
+
+    rule = TestsExistRule()
+    # No pyproject.toml → not CLI → should not apply
+    assert not rule.applies_to(repo)
+
+
+def test_tests_exist_pass_with_test_file(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n[build-system]\nbuild-backend = "hatchling.build"\n')
+    tests_dir = tmp_repo / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_main.py").write_text("def test_foo(): pass\n")
+
+    repo = Repo(path=tmp_repo)
+    # Force is_cli True by having pyproject with version and build system
+    from gitguard.rules.tests_exist import TestsExistRule
+
+    rule = TestsExistRule()
+    if rule.applies_to(repo):
+        result = rule.check(repo)
+        assert result.status == Status.PASS
+
+
+def test_tests_exist_fail_no_tests(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n[build-system]\nbuild-backend = "hatchling.build"\n')
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.tests_exist import TestsExistRule
+
+    rule = TestsExistRule()
+    if rule.applies_to(repo):
+        result = rule.check(repo)
+        assert result.status == Status.FAIL
+        assert "test_*.py" in result.message
+
+
+# --- RUFF_CONFIG rule ---
+
+def test_ruff_config_skip_non_python(tmp_repo):
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.ruff_config import RuffConfigRule
+
+    rule = RuffConfigRule()
+    # No pyproject.toml, no .py files → not Python → should not apply
+    assert not rule.applies_to(repo)
+
+
+def test_ruff_config_pass_with_pyproject_section(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n\n[tool.ruff]\nline-length = 88\n')
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.ruff_config import RuffConfigRule
+
+    rule = RuffConfigRule()
+    assert rule.applies_to(repo)
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_ruff_config_pass_with_ruff_toml(tmp_repo):
+    (tmp_repo / "ruff.toml").write_text('line-length = 88\n')
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n')
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.ruff_config import RuffConfigRule
+
+    rule = RuffConfigRule()
+    assert rule.applies_to(repo)
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_ruff_config_fix_injects_section(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n')
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.ruff_config import RuffConfigRule
+
+    rule = RuffConfigRule()
+    assert rule.applies_to(repo)
+    assert rule.check(repo).status == Status.FAIL
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+    content = (tmp_repo / "pyproject.toml").read_text()
+    assert "[tool.ruff]" in content
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_ruff_config_fix_dry_run(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n')
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.ruff_config import RuffConfigRule
+
+    outcome = RuffConfigRule().fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    content = (tmp_repo / "pyproject.toml").read_text()
+    assert "[tool.ruff]" not in content

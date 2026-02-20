@@ -134,3 +134,7 @@ def get_remote_url(repo_path: Path, remote: str = "origin") -> str:
 
 def set_remote_url(repo_path: Path, remote: str, url: str) -> bool:
     return run_git(repo_path, "remote", "set-url", remote, url).returncode == 0
+
+
+def delete_branch(repo_path: Path, branch: str) -> bool:
+    return run_git(repo_path, "branch", "-d", branch).returncode == 0
