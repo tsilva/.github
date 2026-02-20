@@ -156,6 +156,24 @@ class MyRule(Rule):
 
 The rule is auto-discovered. Add its ID to `_CANONICAL_ORDER` in `rules/_registry.py` if ordering matters.
 
+Also update the `expected` set in `test_all_rules_discovered` in `tests/test_rules.py` with the new rule ID.
+
+Makefile templates require tab characters (not spaces) for recipe lines — Make will reject spaces.
+
+To test a new rule against a single repo from a worktree: `python -c "import sys; sys.path.insert(0, 'src'); from gitguard.rules.X import Y; ..."`
+
+`gitguard --dry-run <path>` expects a parent directory of multiple repos, not a single repo.
+
+### Worktree Workflow
+
+The `commit-commands:commit` skill runs in the main repo context. When working in a worktree, commit manually:
+
+```bash
+git -C .worktrees/<branch> add <files> && git -C .worktrees/<branch> commit -m "..."
+```
+
+Then merge from the main repo directory and remove the worktree.
+
 ### Tests
 
 ```bash
