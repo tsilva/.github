@@ -44,4 +44,5 @@ dist/
 build/
 logs/
 *.log
+.worktrees/
 # >>> END MANAGED <<<
