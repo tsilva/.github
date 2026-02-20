@@ -164,6 +164,63 @@ class CliPypiEnvironmentRule(Rule):
             return CheckResult(Status.SKIP, "gh CLI not available")
 
 
+class CliReleaseMakefileRule(Rule):
+    id = "CLI_RELEASE_MAKEFILE"
+    name = "CLI projects must have a Makefile with a release target"
+    category = Category.CICD
+    auto_fixable = True
+
+    def applies_to(self, repo):
+        return repo.is_cli and repo.has_version
+
+    def check(self, repo):
+        makefile = repo.path / "Makefile"
+        if not makefile.exists():
+            return CheckResult(Status.FAIL, "No Makefile found")
+
+        content = makefile.read_text(encoding="utf-8", errors="replace")
+
+        if "release-%" not in content:
+            return CheckResult(Status.FAIL, "Makefile missing 'release-%' target")
+
+        if "hatch version" not in content:
+            return CheckResult(Status.FAIL, "Makefile release target missing 'hatch version' command")
+
+        version_path = repo.version_source_path
+        if version_path and f"git add {version_path}" not in content:
+            return CheckResult(
+                Status.FAIL,
+                f"Makefile release target 'git add' path does not match version source '{version_path}'",
+            )
+
+        return CheckResult(Status.PASS)
+
+    def fix(self, repo, *, dry_run=False):
+        version_path = repo.version_source_path or "pyproject.toml"
+        release_block = load_template("Makefile").replace("{version_path}", version_path)
+
+        makefile = repo.path / "Makefile"
+
+        if makefile.exists():
+            existing = makefile.read_text(encoding="utf-8", errors="replace")
+            if "release-%" in existing and f"git add {version_path}" in existing:
+                return FixOutcome(FixOutcome.ALREADY_OK)
+            new_content = existing.rstrip("\n") + "\n\n" + release_block
+            action = f"Appended release target to Makefile (git add {version_path})"
+        else:
+            new_content = release_block
+            action = f"Created Makefile with release target (git add {version_path})"
+
+        if dry_run:
+            return FixOutcome(FixOutcome.FIXED, f"Would: {action}")
+
+        try:
+            makefile.write_text(new_content, encoding="utf-8")
+            return FixOutcome(FixOutcome.FIXED, action)
+        except Exception as e:
+            return FixOutcome(FixOutcome.FAILED, str(e))
+
+
 class CliPypiReadyRule(Rule):
     id = "CLI_PYPI_READY"
     name = "CLI projects should have PyPI metadata"

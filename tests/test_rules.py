@@ -45,6 +45,7 @@ def test_all_rules_discovered():
         "CLI_PYPI_ENVIRONMENT",
         "CLI_BUILD_BACKEND",
         "CLI_EDITABLE_INSTALL",
+        "CLI_RELEASE_MAKEFILE",
         "CLAUDE_GIT_WRITE",
         "CLAUDE_MD_SYMLINK",
         "TESTS_EXIST",
@@ -1125,3 +1126,150 @@ def test_release_workflow_pattern_matches_old_shared(tmp_repo):
 
     result = ReleaseWorkflowRule().check(repo)
     assert result.status == Status.PASS
+
+
+# --- CLI_RELEASE_MAKEFILE ---
+
+def test_cli_release_makefile_discovered():
+    rules = discover_rules()
+    rule_ids = [r.id for r in rules]
+    assert "CLI_RELEASE_MAKEFILE" in rule_ids
+
+
+def test_cli_release_makefile_after_cli_pypi_environment():
+    rules = discover_rules()
+    rule_ids = [r.id for r in rules]
+    pypi_env_idx = rule_ids.index("CLI_PYPI_ENVIRONMENT")
+    makefile_idx = rule_ids.index("CLI_RELEASE_MAKEFILE")
+    assert makefile_idx == pypi_env_idx + 1
+
+
+def test_cli_release_makefile_pass_static_version(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    (tmp_repo / "Makefile").write_text(
+        "release-%:\n"
+        "\thatch version $*\n"
+        "\tgit add pyproject.toml\n"
+        '\tgit commit -m "chore: release $$(hatch version)"\n'
+        "\tgit push\n"
+    )
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    result = CliReleaseMakefileRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_cli_release_makefile_pass_dynamic_version(tmp_repo):
+    _make_cli_repo_dynamic(tmp_repo, "src/mypkg/__init__.py")
+    (tmp_repo / "Makefile").write_text(
+        "release-%:\n"
+        "\thatch version $*\n"
+        "\tgit add src/mypkg/__init__.py\n"
+        '\tgit commit -m "chore: release $$(hatch version)"\n'
+        "\tgit push\n"
+    )
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    result = CliReleaseMakefileRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_cli_release_makefile_fail_no_makefile(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    result = CliReleaseMakefileRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "no makefile" in result.message.lower()
+
+
+def test_cli_release_makefile_fail_missing_target(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    (tmp_repo / "Makefile").write_text("build:\n\techo hello\n")
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    result = CliReleaseMakefileRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "release-%" in result.message
+
+
+def test_cli_release_makefile_fail_wrong_git_add_path(tmp_repo):
+    _make_cli_repo_dynamic(tmp_repo, "src/mypkg/__init__.py")
+    (tmp_repo / "Makefile").write_text(
+        "release-%:\n"
+        "\thatch version $*\n"
+        "\tgit add pyproject.toml\n"  # wrong path for dynamic version
+        '\tgit commit -m "chore: release $$(hatch version)"\n'
+        "\tgit push\n"
+    )
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    result = CliReleaseMakefileRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "git add" in result.message.lower() or "version source" in result.message.lower()
+
+
+def test_cli_release_makefile_fix_creates_makefile_static(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    rule = CliReleaseMakefileRule()
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    makefile = tmp_repo / "Makefile"
+    assert makefile.exists()
+    content = makefile.read_text()
+    assert "release-%" in content
+    assert "git add pyproject.toml" in content
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_cli_release_makefile_fix_creates_makefile_dynamic(tmp_repo):
+    _make_cli_repo_dynamic(tmp_repo, "src/mypkg/__init__.py")
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    rule = CliReleaseMakefileRule()
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    makefile = tmp_repo / "Makefile"
+    assert makefile.exists()
+    content = makefile.read_text()
+    assert "release-%" in content
+    assert "git add src/mypkg/__init__.py" in content
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_cli_release_makefile_fix_appends_to_existing(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    (tmp_repo / "Makefile").write_text("build:\n\techo hello\n")
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    rule = CliReleaseMakefileRule()
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    content = (tmp_repo / "Makefile").read_text()
+    assert "build:" in content
+    assert "echo hello" in content
+    assert "release-%" in content
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_cli_release_makefile_fix_dry_run(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseMakefileRule
+
+    outcome = CliReleaseMakefileRule().fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    assert not (tmp_repo / "Makefile").exists()
