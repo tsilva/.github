@@ -42,6 +42,7 @@ def test_all_rules_discovered():
         "CLI_VERSION",
         "CLI_PYPI_READY",
         "CLI_RELEASE_WORKFLOW",
+        "CLI_PYPI_ENVIRONMENT",
         "CLI_BUILD_BACKEND",
         "CLI_EDITABLE_INSTALL",
         "CLAUDE_GIT_WRITE",
@@ -849,3 +850,278 @@ def test_ruff_config_fix_dry_run(tmp_repo):
     assert outcome.status == "fixed"
     content = (tmp_repo / "pyproject.toml").read_text()
     assert "[tool.ruff]" not in content
+
+
+# --- Repo.version_source_path ---
+
+def test_version_source_path_static(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\nversion = "1.0.0"\n'
+    )
+    repo = Repo(path=tmp_repo)
+    assert repo.version_source_path == "pyproject.toml"
+
+
+def test_version_source_path_dynamic_hatch(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\ndynamic = ["version"]\n'
+        '[tool.hatch.version]\npath = "src/mypkg/__init__.py"\n'
+    )
+    repo = Repo(path=tmp_repo)
+    assert repo.version_source_path == "src/mypkg/__init__.py"
+
+
+def test_version_source_path_dynamic_no_hatch_path(tmp_repo):
+    """Dynamic version without hatch path falls back to pyproject.toml."""
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\ndynamic = ["version"]\n'
+    )
+    repo = Repo(path=tmp_repo)
+    assert repo.version_source_path == "pyproject.toml"
+
+
+def test_version_source_path_no_version(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "mypkg"\n')
+    repo = Repo(path=tmp_repo)
+    assert repo.version_source_path is None
+
+
+def test_version_source_path_no_pyproject(bare_repo):
+    repo = Repo(path=bare_repo)
+    assert repo.version_source_path is None
+
+
+# --- CliReleaseWorkflowRule ---
+
+def _make_cli_repo(repo_path):
+    """Write a minimal CLI pyproject.toml with static version."""
+    (repo_path / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
+        '[project.scripts]\nmypkg = "mypkg:main"\n'
+        '[build-system]\nbuild-backend = "hatchling.build"\n'
+    )
+
+
+def _make_cli_repo_dynamic(repo_path, version_path="src/mypkg/__init__.py"):
+    """Write a minimal CLI pyproject.toml with dynamic hatch version."""
+    (repo_path / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\ndynamic = ["version"]\n'
+        '[project.scripts]\nmypkg = "mypkg:main"\n'
+        '[build-system]\nbuild-backend = "hatchling.build"\n'
+        f'[tool.hatch.version]\npath = "{version_path}"\n'
+    )
+
+
+_INLINE_RELEASE_WF = """\
+name: Release
+on:
+  push:
+    branches: [main]
+    paths: [pyproject.toml]
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  test:
+    uses: tsilva/.github/.github/workflows/test.yml@main
+  pii-scan:
+    uses: tsilva/.github/.github/workflows/pii-scan.yml@main
+  publish:
+    needs: [test, pii-scan]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pypa/gh-action-pypi-publish@release/v1
+"""
+
+_OLD_SHARED_WF = """\
+name: Release
+on:
+  push:
+    branches: [main]
+    paths: [pyproject.toml]
+jobs:
+  release:
+    uses: tsilva/.github/.github/workflows/release.yml@main
+    secrets: inherit
+"""
+
+
+def test_cli_release_workflow_pass_inline(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    (wf_dir / "release.yml").write_text(_INLINE_RELEASE_WF)
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    result = CliReleaseWorkflowRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_cli_release_workflow_fail_old_shared_pattern(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    (wf_dir / "release.yml").write_text(_OLD_SHARED_WF)
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    result = CliReleaseWorkflowRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "shared" in result.message.lower() or "migrate" in result.message.lower()
+
+
+def test_cli_release_workflow_fail_missing(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    result = CliReleaseWorkflowRule().check(repo)
+    assert result.status == Status.FAIL
+
+
+def test_cli_release_workflow_fail_trigger_path_mismatch(tmp_repo):
+    """Inline workflow with wrong trigger path → FAIL."""
+    _make_cli_repo_dynamic(tmp_repo, "src/mypkg/__init__.py")
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    # Inline pattern but wrong paths trigger
+    (wf_dir / "release.yml").write_text(
+        "name: Release\non:\n  push:\n    branches: [main]\n    paths: [pyproject.toml]\n"
+        "jobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n"
+        "      - uses: pypa/gh-action-pypi-publish@release/v1\n"
+    )
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    result = CliReleaseWorkflowRule().check(repo)
+    assert result.status == Status.FAIL
+    assert "trigger path" in result.message.lower() or "version source" in result.message.lower()
+
+
+def test_cli_release_workflow_fix_static_version(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    rule = CliReleaseWorkflowRule()
+    assert rule.check(repo).status == Status.FAIL
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    wf_path = tmp_repo / ".github" / "workflows" / "release.yml"
+    assert wf_path.is_file()
+    content = wf_path.read_text()
+    assert "pypa/gh-action-pypi-publish" in content
+    assert "paths: [pyproject.toml]" in content
+
+    result = rule.check(repo)
+    assert result.status == Status.PASS
+
+
+def test_cli_release_workflow_fix_dynamic_version(tmp_repo):
+    _make_cli_repo_dynamic(tmp_repo, "src/mypkg/__init__.py")
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    rule = CliReleaseWorkflowRule()
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    wf_path = tmp_repo / ".github" / "workflows" / "release.yml"
+    content = wf_path.read_text()
+    assert "pypa/gh-action-pypi-publish" in content
+    assert "paths: [src/mypkg/__init__.py]" in content
+
+    result = rule.check(repo)
+    assert result.status == Status.PASS
+
+
+def test_cli_release_workflow_fix_migrates_old_shared(tmp_repo):
+    """Fix should overwrite old shared pattern with inline pattern."""
+    _make_cli_repo(tmp_repo)
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    (wf_dir / "release.yml").write_text(_OLD_SHARED_WF)
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    rule = CliReleaseWorkflowRule()
+    assert rule.check(repo).status == Status.FAIL
+
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+
+    content = (wf_dir / "release.yml").read_text()
+    assert "pypa/gh-action-pypi-publish" in content
+    assert "release.yml@main" not in content
+
+    assert rule.check(repo).status == Status.PASS
+
+
+def test_cli_release_workflow_fix_dry_run(tmp_repo):
+    _make_cli_repo(tmp_repo)
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.cli import CliReleaseWorkflowRule
+
+    outcome = CliReleaseWorkflowRule().fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    assert not (tmp_repo / ".github" / "workflows" / "release.yml").is_file()
+
+
+# --- CLI_PYPI_ENVIRONMENT in rule discovery ---
+
+def test_cli_pypi_environment_discovered():
+    rules = discover_rules()
+    rule_ids = [r.id for r in rules]
+    assert "CLI_PYPI_ENVIRONMENT" in rule_ids
+
+
+def test_cli_pypi_environment_after_cli_release_workflow():
+    rules = discover_rules()
+    rule_ids = [r.id for r in rules]
+    release_idx = rule_ids.index("CLI_RELEASE_WORKFLOW")
+    pypi_env_idx = rule_ids.index("CLI_PYPI_ENVIRONMENT")
+    assert pypi_env_idx == release_idx + 1
+
+
+# --- RELEASE_WORKFLOW pattern matches inline pattern ---
+
+def test_release_workflow_pattern_matches_inline(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
+    )
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    (wf_dir / "release.yml").write_text(_INLINE_RELEASE_WF)
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.workflow_search import ReleaseWorkflowRule
+
+    result = ReleaseWorkflowRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_release_workflow_pattern_matches_old_shared(tmp_repo):
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
+    )
+    wf_dir = tmp_repo / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    (wf_dir / "release.yml").write_text(_OLD_SHARED_WF)
+
+    repo = Repo(path=tmp_repo)
+    from gitguard.rules.workflow_search import ReleaseWorkflowRule
+
+    result = ReleaseWorkflowRule().check(repo)
+    assert result.status == Status.PASS

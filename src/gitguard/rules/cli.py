@@ -3,6 +3,7 @@
 import importlib.metadata
 import json
 import re
+import subprocess
 
 from gitguard.rules import Category, CheckResult, FixOutcome, Rule, Status
 from gitguard.templates import load_template
@@ -54,6 +55,7 @@ class CliReleaseWorkflowRule(Rule):
     id = "CLI_RELEASE_WORKFLOW"
     name = "CLI projects must have a release workflow with PyPI publishing"
     category = Category.CICD
+    auto_fixable = True
 
     def applies_to(self, repo):
         return repo.is_cli and repo.has_version
@@ -61,17 +63,39 @@ class CliReleaseWorkflowRule(Rule):
     def check(self, repo):
         wf_dir = repo.path / ".github" / "workflows"
         if not wf_dir.is_dir():
-            return CheckResult(Status.FAIL, "No .github/workflows directory")
+            return CheckResult(Status.FAIL, "No release workflow with PyPI publishing found")
 
         for wf_file in wf_dir.iterdir():
             if wf_file.suffix not in (".yml", ".yaml"):
                 continue
             try:
                 content = wf_file.read_text(encoding="utf-8", errors="replace")
-                if re.search(r"publish-pypi\.yml|release\.yml@main", content):
-                    return CheckResult(Status.PASS)
             except Exception:
                 continue
+
+            has_inline_publish = bool(re.search(r"pypa/gh-action-pypi-publish", content))
+            has_old_shared = bool(re.search(r"release\.yml@main", content)) and not has_inline_publish
+
+            if has_old_shared:
+                return CheckResult(
+                    Status.FAIL,
+                    "Release workflow uses shared release.yml@main (breaks PyPI trusted publishing); migrate to inline pattern",
+                )
+
+            if has_inline_publish:
+                # Check that trigger path matches version_source_path
+                version_path = repo.version_source_path
+                if version_path:
+                    paths_match = re.search(
+                        r"paths:\s*\[" + re.escape(version_path) + r"\]",
+                        content,
+                    )
+                    if not paths_match:
+                        return CheckResult(
+                            Status.FAIL,
+                            f"Release workflow trigger path does not match version source '{version_path}'",
+                        )
+                return CheckResult(Status.PASS)
 
         return CheckResult(
             Status.FAIL,
@@ -81,28 +105,63 @@ class CliReleaseWorkflowRule(Rule):
     def fix(self, repo, *, dry_run=False):
         wf_dir = repo.path / ".github" / "workflows"
 
-        # Re-check in case already present
+        version_path = repo.version_source_path or "pyproject.toml"
+        template = load_template("release.yml").replace("{version_path}", version_path)
+
+        # Check if already using inline pattern with correct path
         if wf_dir.is_dir():
             for wf_file in wf_dir.iterdir():
                 if wf_file.suffix not in (".yml", ".yaml"):
                     continue
                 try:
                     content = wf_file.read_text(encoding="utf-8", errors="replace")
-                    if re.search(r"publish-pypi\.yml|release\.yml@main", content):
-                        return FixOutcome(FixOutcome.ALREADY_OK)
+                    if re.search(r"pypa/gh-action-pypi-publish", content):
+                        if re.search(
+                            r"paths:\s*\[" + re.escape(version_path) + r"\]", content
+                        ):
+                            return FixOutcome(FixOutcome.ALREADY_OK)
                 except Exception:
                     continue
 
         if dry_run:
-            return FixOutcome(FixOutcome.FIXED, "Would create .github/workflows/release.yml")
+            return FixOutcome(FixOutcome.FIXED, f"Would write .github/workflows/release.yml (paths: [{version_path}])")
 
         try:
             wf_dir.mkdir(parents=True, exist_ok=True)
-            template = load_template("release.yml")
             (wf_dir / "release.yml").write_text(template, encoding="utf-8")
-            return FixOutcome(FixOutcome.FIXED, "Created .github/workflows/release.yml")
+            return FixOutcome(FixOutcome.FIXED, f"Wrote .github/workflows/release.yml (paths: [{version_path}])")
         except Exception as e:
             return FixOutcome(FixOutcome.FAILED, str(e))
+
+
+class CliPypiEnvironmentRule(Rule):
+    id = "CLI_PYPI_ENVIRONMENT"
+    name = "CLI projects must have a 'pypi' GitHub environment for trusted publishing"
+    category = Category.CICD
+
+    def applies_to(self, repo):
+        return repo.is_cli and repo.has_version and bool(repo.github_repo)
+
+    def check(self, repo):
+        try:
+            result = subprocess.run(
+                ["gh", "api", f"repos/{repo.github_repo}/environments"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode != 0:
+                return CheckResult(Status.SKIP, "Could not query GitHub environments")
+            data = json.loads(result.stdout)
+            envs = {e.get("name") for e in data.get("environments", [])}
+            if "pypi" in envs:
+                return CheckResult(Status.PASS)
+            return CheckResult(
+                Status.FAIL,
+                "No 'pypi' GitHub environment found; create it at Settings → Environments",
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return CheckResult(Status.SKIP, "gh CLI not available")
 
 
 class CliPypiReadyRule(Rule):

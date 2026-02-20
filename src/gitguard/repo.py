@@ -95,6 +95,42 @@ class Repo:
             self._cache["has_version"] = self._check_version()
         return self._cache["has_version"]
 
+    @property
+    def version_source_path(self) -> str | None:
+        """Return the relative path to the file containing the version.
+
+        - Static version (project.version) → "pyproject.toml"
+        - Dynamic version via hatch (tool.hatch.version.path) → that path value
+        - No version → None
+        """
+        if "version_source_path" not in self._cache:
+            self._cache["version_source_path"] = self._find_version_source_path()
+        return self._cache["version_source_path"]
+
+    def _find_version_source_path(self) -> str | None:
+        pyproject = self.path / "pyproject.toml"
+        if not pyproject.is_file():
+            return None
+        try:
+            import tomllib
+
+            with open(pyproject, "rb") as f:
+                data = tomllib.load(f)
+            project = data.get("project", {})
+            # Static version
+            if project.get("version"):
+                return "pyproject.toml"
+            # Dynamic version via hatch
+            if "version" in project.get("dynamic", []):
+                hatch_version = data.get("tool", {}).get("hatch", {}).get("version", {})
+                path = hatch_version.get("path")
+                if path:
+                    return path
+                return "pyproject.toml"
+            return None
+        except Exception:
+            return None
+
     def _parse_package_name(self) -> str | None:
         pyproject = self.path / "pyproject.toml"
         if not pyproject.is_file():
