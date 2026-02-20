@@ -5,6 +5,7 @@
 .claude/*.local.json
 .claude/*.local.json.bak
 .claude-sandbox.json
+.mcp.json
 
 # Secrets and credentials
 .env
