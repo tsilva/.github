@@ -2,6 +2,7 @@
 .claude/*.local.json
 .claude/*.local.json.bak
 .claude-sandbox.json
+.mcp.json
 .env
 .env.*
 !.env.example
@@ -44,5 +45,4 @@ dist/
 build/
 logs/
 *.log
-.worktrees/
 # >>> END MANAGED <<<

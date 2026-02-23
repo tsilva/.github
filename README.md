@@ -10,6 +10,8 @@
 
 ## Features
 
+[![CI](https://github.com/tsilva/.github/actions/workflows/ci.yml/badge.svg)](https://github.com/tsilva/.github/actions/workflows/ci.yml)
+
 - Modular workflows — each handles a single concern, composable together
 - PyPI publishing — build, release, and publish via trusted publishing
 - Auto-tagging — version extracted from `pyproject.toml`, skips existing tags
