@@ -12,7 +12,7 @@ _REPOS_DIR_HELP = (
     f"Directory containing git repositories (default: ${_REPOS_DIR_ENV} env var)"
 )
 
-_SUBCOMMANDS = {"commit", "report", "rename", "logo"}
+_SUBCOMMANDS = {"commit", "report", "rename", "logo", "create"}
 
 
 def _resolve_target(args: argparse.Namespace) -> tuple[Path, bool]:
@@ -209,6 +209,44 @@ def _build_logo_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_create_parser() -> argparse.ArgumentParser:
+    """Build parser for the create subcommand."""
+    parser = argparse.ArgumentParser(
+        prog="gitguard create",
+        description="Create a new repo from a GitHub template",
+    )
+    parser.add_argument("repo_name", help="Repository name (lowercase, letters/hyphens/numbers)")
+    parser.add_argument(
+        "template_type",
+        nargs="?",
+        default=None,
+        choices=["python-cli", "python-sandbox", "generic"],
+        help="Template type (auto-detected for sandbox-* names)",
+    )
+    parser.add_argument(
+        "-d",
+        "--description",
+        dest="description",
+        default="",
+        help="One-line project description",
+    )
+    parser.add_argument(
+        "target",
+        nargs="?",
+        default=None,
+        type=Path,
+        help="Path to repos directory (uses GITGUARD_REPOS_DIR env var if omitted)",
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Show what would happen without making changes",
+    )
+    return parser
+
+
 def main(argv: list[str] | None = None) -> None:
     if argv is None:
         argv = sys.argv[1:]
@@ -323,6 +361,56 @@ def main(argv: list[str] | None = None) -> None:
             from gitguard.commands.logo import run_logo
 
             sys.exit(run_logo(repo_path, args.dry_run, args.show_config))
+
+        elif command == "create":
+            parser = _build_create_parser()
+            args = parser.parse_args(rest)
+
+            # Auto-detect template type for sandbox-* names
+            template_type = args.template_type
+            if template_type is None:
+                if args.repo_name.startswith("sandbox-"):
+                    template_type = "python-sandbox"
+                else:
+                    print(
+                        "Error: template_type is required (python-cli, python-sandbox, or generic)",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
+            # Resolve repos directory
+            if args.target is not None:
+                repos_dir = Path(args.target).resolve()
+                if not repos_dir.is_dir():
+                    print(
+                        f"Error: Directory does not exist: {repos_dir}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+            else:
+                env = os.environ.get(_REPOS_DIR_ENV)
+                if env:
+                    repos_dir = Path(env)
+                    if not repos_dir.is_dir():
+                        print(
+                            f"Error: Repos directory does not exist: {repos_dir}",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                else:
+                    print(
+                        f"Error: No target provided and {_REPOS_DIR_ENV} is not set",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+
+            from gitguard.commands.create import run_create
+
+            sys.exit(
+                run_create(
+                    args.repo_name, template_type, args.description, repos_dir, args.dry_run
+                )
+            )
 
     else:
         # Default: maintain (single-pass check+fix)

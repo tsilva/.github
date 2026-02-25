@@ -118,15 +118,17 @@ gitguard commit [repos-dir] [-f PAT] [-n|--dry-run]
 gitguard report taglines|tracked-ignored|branches [repos-dir] [-f PAT]
 gitguard rename <old-name> <new-name> [repos-dir] [-n|--dry-run]
 gitguard logo <repo-name> [repos-dir] [-n|--dry-run] [--show-config]
+gitguard create <repo-name> <template-type> [-d DESC] [repos-dir] [-n|--dry-run]
 ```
 
-Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, renames the Python package directory and `.code-workspace` file if present, performs a global search-replace of the old name across all tracked text files, regenerates `uv.lock` if `pyproject.toml` exists, then warns about cross-repo references. The `logo` subcommand generates an AI logo image for a single repo using image generation.
+Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, renames the Python package directory and `.code-workspace` file if present, performs a global search-replace of the old name across all tracked text files, regenerates `uv.lock` if `pyproject.toml` exists, then warns about cross-repo references. The `logo` subcommand generates an AI logo image for a single repo using image generation. The `create` subcommand creates a new repo from a GitHub template (`python-cli`, `python-sandbox`, or `generic`), clones it, replaces template placeholders (`my-project`/`my_project`/description), renames the package directory for python-cli templates, and commits+pushes. Names starting with `sandbox-` auto-detect as `python-sandbox`.
 
 ### Package Structure
 
 - `src/gitguard/cli.py` — argparse entry point
 - `src/gitguard/engine.py` — RuleRunner: single-pass check → fix → verify per rule
 - `src/gitguard/commands/commit.py` — interactive AI-assisted commit & push
+- `src/gitguard/commands/create.py` — create repo from template (GitHub + clone + placeholder replacement + package dir rename + commit)
 - `src/gitguard/commands/rename.py` — repo rename (GitHub + local + remote + package dir + workspace file + global search-replace + uv.lock regen)
 - `src/gitguard/repo.py` — Repo dataclass with lazy-cached properties
 - `src/gitguard/rules/` — one file per compliance rule (35 total), auto-discovered via `pkgutil`

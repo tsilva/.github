@@ -159,6 +159,20 @@ def repo_exists(nwo: str) -> bool:
         return False
 
 
+def create_from_template(name: str, template: str, public: bool = True) -> bool:
+    """Create a GitHub repo from a template. template is the full nwo (e.g. tsilva/template-python-cli)."""
+    cmd = ["gh", "repo", "create", name, "--template", template]
+    if public:
+        cmd.append("--public")
+    else:
+        cmd.append("--private")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        return r.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
 def rename_repo(old_nwo: str, new_name: str) -> bool:
     """Rename a GitHub repo from old_nwo (owner/old-name) to new_name."""
     try:
