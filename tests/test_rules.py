@@ -26,6 +26,7 @@ def test_all_rules_discovered():
         "CLAUDE_SANDBOX",
         "DEPENDABOT_EXISTS",
         "PRECOMMIT_GITLEAKS",
+        "PRECOMMIT_INSTALLED",
         "TRACKED_IGNORED",
         "PENDING_COMMITS",
         "STALE_BRANCHES",
