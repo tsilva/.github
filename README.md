@@ -163,6 +163,9 @@ gh repo create tsilva/sandbox-whatever --template tsilva/template-python-sandbox
 
 # Non-Python project
 gh repo create tsilva/my-app --template tsilva/template-generic --clone
+
+# React Native (Expo) app
+gh repo create tsilva/my-app --template tsilva/template-react-native --clone
 ```
 
 | Template | Use case | Includes |
@@ -170,6 +173,7 @@ gh repo create tsilva/my-app --template tsilva/template-generic --clone
 | `template-python-cli` | CLI tools published to PyPI | src layout, hatchling build, release workflow, tests |
 | `template-python-sandbox` | Learning/experimentation | Minimal pyproject.toml, no workflows |
 | `template-generic` | Non-Python repos | No Python files |
+| `template-react-native` | React Native (Expo) apps | Expo Router, EAS Build workflow, TypeScript |
 
 All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, Claude sandbox config.
 
@@ -181,6 +185,7 @@ Use the `bootstrap-repo` skill to go from zero to fully compliant in a single in
 /bootstrap-repo my-new-tool python-cli "A CLI tool that does X"
 /bootstrap-repo sandbox-ml python-sandbox "Experimenting with ML algorithms"
 /bootstrap-repo my-app generic "A web application"
+/bootstrap-repo my-mobile-app react-native "A habit tracking app"
 ```
 
 ## Usage
