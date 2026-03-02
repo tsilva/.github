@@ -55,17 +55,9 @@ def tmp_repo(tmp_path: Path) -> Path:
         '{\n  "sandbox": {\n    "enabled": true\n  },\n  "permissions": {\n    "allow": [],\n    "deny": []\n  }\n}\n'
     )
 
-    # Create .github/dependabot.yml
+    # Create .github directory
     gh_dir = repo / ".github"
     gh_dir.mkdir()
-    (gh_dir / "dependabot.yml").write_text(
-        "version: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n    schedule:\n      interval: weekly\n"
-    )
-
-    # Create pre-commit config
-    (repo / ".pre-commit-config.yaml").write_text(
-        "repos:\n  - repo: https://github.com/tsilva/.github\n    rev: main\n    hooks:\n      - id: gitleaks\n"
-    )
 
     # Commit everything
     subprocess.run(

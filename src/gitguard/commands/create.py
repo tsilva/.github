@@ -13,12 +13,13 @@ from gitguard import git, github, output
 
 _ORG = "tsilva"
 
-_TEMPLATE_TYPES = ("python-cli", "python-sandbox", "generic")
+_TEMPLATE_TYPES = ("python-cli", "python-sandbox", "generic", "react-native")
 
 _DESCRIPTION_PLACEHOLDERS = {
     "python-cli": "Short description of what this tool does.",
     "python-sandbox": "Short description of what this project explores.",
     "generic": "Short description of what this project does.",
+    "react-native": "Short description of what this app does.",
 }
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -81,7 +82,7 @@ def run_create(
     output.header("Replace Placeholders")
     if dry_run:
         output.skip(f"Would replace 'my-project' → '{repo_name}' in all tracked files")
-        if template_type == "python-cli":
+        if template_type in ("python-cli", "react-native"):
             output.skip(f"Would replace 'my_project' → '{package_name}' in all tracked files")
         desc_placeholder = _DESCRIPTION_PLACEHOLDERS[template_type]
         output.skip(f"Would replace '{desc_placeholder}' → '{description}'")
@@ -216,7 +217,7 @@ def _replace_placeholders(
             new_content = new_content.replace(desc_placeholder, description)
 
         # Replace underscore form (python-cli only, before hyphenated form)
-        if template_type == "python-cli" and "my_project" in new_content:
+        if template_type in ("python-cli", "react-native") and "my_project" in new_content:
             count += new_content.count("my_project")
             new_content = new_content.replace("my_project", package_name)
 

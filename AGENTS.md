@@ -43,14 +43,6 @@ Extracts version from `pyproject.toml`, checks if tag exists, and creates a GitH
 
 - **Permissions:** `contents: write`
 
-### `pii-scan.yml`
-
-Scans repository for credentials and secrets using [gitleaks-action v2](https://github.com/gitleaks/gitleaks-action).
-
-- Uses `fetch-depth: 0` to scan full git history
-- Produces GitHub Step Summary output natively
-- Configured via `.gitleaks.toml` in caller repos (optional)
-
 ### `test.yml`
 
 Runs tests with [pytest](https://docs.pytest.org/).
@@ -61,7 +53,7 @@ Runs tests with [pytest](https://docs.pytest.org/).
 
 ### `ci.yml`
 
-Composes `test.yml` + `pii-scan.yml` in parallel for PR-time checks. Caller repos use a single `uses:` line instead of composing manually.
+Wraps `test.yml` for PR-time checks. Caller repos use a single `uses:` line.
 
 - **Inputs:** `python-version` (string, default `"3.12"`), `pytest-args` (string, default `""`)
 
@@ -75,7 +67,7 @@ Chains the above workflows together.
 
 #### Flow
 
-1. Runs `test.yml` and `pii-scan.yml` in parallel
+1. Runs tests
 2. If `publish_to_pypi`: calls `publish-pypi.yml`
 3. If not `publish_to_pypi`: calls `create-release.yml`
 
@@ -121,7 +113,7 @@ gitguard logo <repo-name> [repos-dir] [-n|--dry-run] [--show-config]
 gitguard create <repo-name> <template-type> [-d DESC] [repos-dir] [-n|--dry-run]
 ```
 
-Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, renames the Python package directory and `.code-workspace` file if present, performs a global search-replace of the old name across all tracked text files, regenerates `uv.lock` if `pyproject.toml` exists, then warns about cross-repo references. The `logo` subcommand generates an AI logo image for a single repo using image generation. The `create` subcommand creates a new repo from a GitHub template (`python-cli`, `python-sandbox`, or `generic`), clones it, replaces template placeholders (`my-project`/`my_project`/description), renames the package directory for python-cli templates, and commits+pushes. Names starting with `sandbox-` auto-detect as `python-sandbox`.
+Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, renames the Python package directory and `.code-workspace` file if present, performs a global search-replace of the old name across all tracked text files, regenerates `uv.lock` if `pyproject.toml` exists, then warns about cross-repo references. The `logo` subcommand generates an AI logo image for a single repo using image generation. The `create` subcommand creates a new repo from a GitHub template (`python-cli`, `python-sandbox`, `generic`, or `react-native`), clones it, replaces template placeholders (`my-project`/`my_project`/description), renames the package directory for python-cli templates, and commits+pushes. Names starting with `sandbox-` auto-detect as `python-sandbox`.
 
 ### Package Structure
 
@@ -131,12 +123,12 @@ Running with no flags clones missing repos, fetches updates for clean repos, the
 - `src/gitguard/commands/create.py` — create repo from template (GitHub + clone + placeholder replacement + package dir rename + commit)
 - `src/gitguard/commands/rename.py` — repo rename (GitHub + local + remote + package dir + workspace file + global search-replace + uv.lock regen)
 - `src/gitguard/repo.py` — Repo dataclass with lazy-cached properties
-- `src/gitguard/rules/` — one file per compliance rule (35 total), auto-discovered via `pkgutil`
+- `src/gitguard/rules/` — one file per compliance rule (31 total), auto-discovered via `pkgutil`
 - `src/gitguard/rules/__init__.py` — Rule ABC, Status, Category, CheckResult, FixOutcome
 - `src/gitguard/rules/_registry.py` — auto-discovery + dependency-aware ordering
 - `src/gitguard/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
 - `src/gitguard/tagline.py` — README tagline extractor (from `scripts/lib/extract_tagline.py`)
-- `src/gitguard/templates/` — LICENSE, CLAUDE.md, dependabot.yml, pre-commit-config.yaml
+- `src/gitguard/templates/` — LICENSE, CLAUDE.md
 
 ### Adding a New Rule
 
@@ -186,34 +178,9 @@ pytest tests/
 
 - `set-secret-all-repos.sh` — set GitHub secret across all repos (no CLI replacement)
 
-## Pre-commit Hook
-
-This repo provides a [pre-commit](https://pre-commit.com/) hook for running gitleaks locally.
-
-### Caller repo setup
-
-Add to `.pre-commit-config.yaml`:
-
-```yaml
-repos:
-  - repo: https://github.com/tsilva/.github
-    rev: main
-    hooks:
-      - id: gitleaks
-```
-
-Then:
-
-```bash
-pre-commit install
-pre-commit run gitleaks --all-files
-```
-
-Requires [gitleaks](https://github.com/gitleaks/gitleaks#installing) installed locally.
-
 ## Repository Templates
 
-Three GitHub template repos provide pre-compliant starting points for new projects. Use `gh repo create` with `--template` to bootstrap:
+Four GitHub template repos provide pre-compliant starting points for new projects. Use `gh repo create` with `--template` to bootstrap:
 
 ```bash
 # Python CLI tool (published to PyPI)
@@ -224,15 +191,19 @@ gh repo create tsilva/sandbox-whatever --template tsilva/template-python-sandbox
 
 # Non-Python project
 gh repo create tsilva/my-app --template tsilva/template-generic --clone
+
+# React Native (Expo) app
+gh repo create tsilva/my-app --template tsilva/template-react-native --clone
 ```
 
 | Template | Use case | Key files |
 |----------|----------|-----------|
 | `template-python-cli` | CLI tools published to PyPI | pyproject.toml (hatchling), src layout, release workflow, tests |
 | `template-python-sandbox` | Learning/experimentation | Minimal pyproject.toml, no src layout, no release workflow |
-| `template-generic` | Non-Python repos | No Python files, dependabot for github-actions only |
+| `template-generic` | Non-Python repos | No Python files |
+| `template-react-native` | React Native (Expo) apps | package.json, app/ (Expo Router), EAS Build workflow |
 
-All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, .github/dependabot.yml, .pre-commit-config.yaml (gitleaks), .claude/settings.local.json (sandbox enabled).
+All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, .claude/settings.local.json (sandbox enabled).
 
 ## Maintenance
 

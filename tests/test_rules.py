@@ -24,9 +24,6 @@ def test_all_rules_discovered():
         "GITIGNORE",
         "CLAUDE_MD_EXISTS",
         "CLAUDE_SANDBOX",
-        "DEPENDABOT_EXISTS",
-        "PRECOMMIT_GITLEAKS",
-        "PRECOMMIT_INSTALLED",
         "TRACKED_IGNORED",
         "PENDING_COMMITS",
         "STALE_BRANCHES",
@@ -38,7 +35,6 @@ def test_all_rules_discovered():
         "CI_WORKFLOW",
         "WORKFLOWS_PASSING",
         "RELEASE_WORKFLOW",
-        "PII_SCAN",
         "REPO_DESCRIPTION",
         "CLI_VERSION",
         "CLI_PYPI_READY",
@@ -85,7 +81,6 @@ def test_all_pass_on_complete_repo(tmp_repo):
     assert "GITIGNORE" in passing_ids
     assert "CLAUDE_MD_EXISTS" in passing_ids
     assert "CLAUDE_SANDBOX" in passing_ids
-    assert "DEPENDABOT_EXISTS" in passing_ids
     assert "TRACKED_IGNORED" in passing_ids
     assert "LOGO_EXISTS" in passing_ids
     assert "README_LOGO" not in passing_ids  # README doesn't reference logo
@@ -195,31 +190,6 @@ def test_sandbox_fix(bare_repo):
     settings = json.loads((bare_repo / ".claude" / "settings.local.json").read_text())
     assert settings["sandbox"]["enabled"] is True
     assert settings["permissions"] == {"allow": [], "deny": []}
-
-
-def test_dependabot_fix(bare_repo):
-    repo = Repo(path=bare_repo)
-    from gitguard.rules.dependabot_exists import DependabotExistsRule
-
-    rule = DependabotExistsRule()
-    assert rule.check(repo).status == Status.FAIL
-
-    outcome = rule.fix(repo)
-    assert outcome.status == "fixed"
-    assert (bare_repo / ".github" / "dependabot.yml").is_file()
-
-
-def test_precommit_fix(bare_repo):
-    repo = Repo(path=bare_repo)
-    from gitguard.rules.precommit_gitleaks import PrecommitGitleaksRule
-
-    rule = PrecommitGitleaksRule()
-    assert rule.check(repo).status == Status.FAIL
-
-    outcome = rule.fix(repo)
-    assert outcome.status == "fixed"
-    config = (bare_repo / ".pre-commit-config.yaml").read_text()
-    assert "tsilva/.github" in config
 
 
 def test_pending_commits_clean(tmp_repo):
@@ -926,10 +896,8 @@ concurrency:
 jobs:
   test:
     uses: tsilva/.github/.github/workflows/test.yml@main
-  pii-scan:
-    uses: tsilva/.github/.github/workflows/pii-scan.yml@main
   publish:
-    needs: [test, pii-scan]
+    needs: [test]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

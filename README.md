@@ -5,7 +5,7 @@
 
   Shared reusable GitHub Actions workflows and org-wide maintenance tooling for the `tsilva` organization
 
-  [Workflows](#workflows) · [CLI](#cli-gitguard) · [Usage](#usage) · [Pre-commit Hook](#pre-commit-hook)
+  [Workflows](#workflows) · [CLI](#cli-gitguard) · [Usage](#usage)
 </div>
 
 ## Features
@@ -15,8 +15,6 @@
 - Modular workflows — each handles a single concern, composable together
 - PyPI publishing — build, release, and publish via trusted publishing
 - Auto-tagging — version extracted from `pyproject.toml`, skips existing tags
-- Secret scanning — detect credentials and secrets using [gitleaks](https://github.com/gitleaks/gitleaks)
-- Pre-commit hook — run gitleaks locally before pushing
 - Testing — pytest via reusable workflow
 - Repo compliance — audit and enforce org standards across all repos via Python CLI
 - One-line integration — `uses: tsilva/.github/...@main` and `secrets: inherit`
@@ -27,12 +25,11 @@
 
 | Workflow | Purpose | Key Details |
 |----------|---------|-------------|
-| `release.yml` | Composed release flow | Chains test + scan + publish/release |
+| `release.yml` | Composed release flow | Chains test + publish/release |
 | `publish-pypi.yml` | Build, tag, release, publish | Uses `uv build` + trusted publishing |
 | `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
 | `test.yml` | Run tests | Uses pytest via uv |
-| `pii-scan.yml` | Scan for credentials/secrets | Uses gitleaks-action v2 |
-| `ci.yml` | PR-time checks | Composes test + pii-scan in parallel |
+| `ci.yml` | PR-time checks | Wraps test workflow |
 | `audit.yml` | Scheduled compliance audit | Weekly + on-demand, all org repos |
 
 ### `release.yml` (Composer)
@@ -43,15 +40,9 @@ The main entry point for most repos. Chains individual workflows together.
 - `publish_to_pypi` (boolean, default: `true`) — set `false` for non-Python repos
 
 **Flow:**
-1. Runs tests and PII scan in parallel
+1. Runs tests
 2. If `publish_to_pypi`: builds with `uv`, creates release with artifacts, publishes to PyPI
 3. If not: creates a GitHub release without artifacts
-
-### `pii-scan.yml`
-
-Scans repository for credentials and secrets using [gitleaks-action v2](https://github.com/gitleaks/gitleaks-action). Scans full git history and produces GitHub Step Summary output natively.
-
-Caller repos can customize detection rules via a `.gitleaks.toml` config file.
 
 ## CLI (`gitguard`)
 
@@ -128,12 +119,6 @@ The rule is auto-discovered — no registration needed.
 | `TRACKED_IGNORED` | No tracked files should match .gitignore patterns |
 | `REPO_DESCRIPTION` | GitHub repo description must match README tagline |
 
-**Dependency Management**
-
-| ID | Rule |
-|----|------|
-| `DEPENDABOT_EXISTS` | .github/dependabot.yml must exist |
-
 **Python Projects**
 
 | ID | Rule |
@@ -156,13 +141,6 @@ The rule is auto-discovered — no registration needed.
 | `CLAUDE_SANDBOX` | Claude Code sandbox must be enabled |
 | `SETTINGS_DANGEROUS` | No dangerous permission patterns in Claude settings |
 | `SETTINGS_CLEAN` | No redundant permissions or unmigrated WebFetch domains |
-
-**Security**
-
-| ID | Rule |
-|----|------|
-| `PII_SCAN` | CI must include gitleaks secret scanning |
-| `PRECOMMIT_GITLEAKS` | Pre-commit must include gitleaks hook |
 
 **Git Hygiene**
 
@@ -193,7 +171,7 @@ gh repo create tsilva/my-app --template tsilva/template-generic --clone
 | `template-python-sandbox` | Learning/experimentation | Minimal pyproject.toml, no workflows |
 | `template-generic` | Non-Python repos | No Python files |
 
-All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, dependabot, pre-commit (gitleaks), Claude sandbox config.
+All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, Claude sandbox config.
 
 ### Automated Bootstrapping
 
@@ -245,29 +223,6 @@ jobs:
   ci:
     uses: tsilva/.github/.github/workflows/ci.yml@main
 ```
-
-## Pre-commit Hook
-
-This repo provides a [pre-commit](https://pre-commit.com/) hook for running gitleaks locally.
-
-Add to your `.pre-commit-config.yaml`:
-
-```yaml
-repos:
-  - repo: https://github.com/tsilva/.github
-    rev: main
-    hooks:
-      - id: gitleaks
-```
-
-Then:
-
-```bash
-pre-commit install
-pre-commit run gitleaks --all-files
-```
-
-Requires [gitleaks](https://github.com/gitleaks/gitleaks#installing) installed locally.
 
 ## Requirements
 

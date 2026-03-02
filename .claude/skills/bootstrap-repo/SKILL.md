@@ -27,7 +27,7 @@ uv tool install gitguard --from /path/to/.github
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `REPO_NAME` | yes | Repo name — lowercase, hyphens/numbers only |
-| `TEMPLATE_TYPE` | yes (or auto-detected) | `python-cli`, `python-sandbox`, or `generic` |
+| `TEMPLATE_TYPE` | yes (or auto-detected) | `python-cli`, `python-sandbox`, `generic`, or `react-native` |
 | `DESCRIPTION` | no (prompted if missing) | One-line project description |
 
 **Auto-detection:** Names matching `sandbox-*` default to `python-sandbox`. Otherwise ask the user if not specified.
@@ -120,5 +120,6 @@ Report results to user. Expected transient warnings for freshly bootstrapped rep
 /bootstrap-repo my-new-tool python-cli "A CLI tool that does X"
 /bootstrap-repo sandbox-ml python-sandbox "Experimenting with ML algorithms"
 /bootstrap-repo my-app generic "A web application"
+/bootstrap-repo my-mobile-app react-native "A habit tracking app"
 /bootstrap-repo my-thing
 ```

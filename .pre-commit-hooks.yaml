@@ -1,6 +1,0 @@
-- id: gitleaks
-  name: gitleaks
-  description: Detect hardcoded secrets using gitleaks
-  entry: gitleaks git --pre-commit --redact --verbose
-  language: system
-  pass_filenames: false

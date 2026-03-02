@@ -1,4 +1,4 @@
-"""Config-driven workflow search rules (CI, Release, PII scan)."""
+"""Config-driven workflow search rules (CI, Release)."""
 
 import re
 
@@ -64,13 +64,4 @@ ReleaseWorkflowRule = _make(
     pattern=r"tsilva/\.github/.*/(release|publish-pypi)\.yml|pypa/gh-action-pypi-publish",
     fail_message="Versioned project missing release workflow",
     applies_check=lambda r: r.has_pyproject and r.has_version,
-)
-
-PiiScanRule = _make(
-    id="PII_SCAN",
-    name="PII scanning in CI",
-    category=Category.SECURITY,
-    pattern=r"pii-scan\.yml|release\.yml|gitleaks-action",
-    fail_message="No PII scanning in CI workflows",
-    applies_check=lambda r: r.has_workflows,
 )

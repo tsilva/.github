@@ -92,7 +92,7 @@ gitguard --dry-run --filter my-project <repos-dir>
 gitguard --dry-run --rule README_EXISTS <repos-dir>
 ```
 
-### Checks (24 per repo)
+### Checks (20 per repo)
 
 | Check | What it detects |
 |-------|----------------|
@@ -112,13 +112,10 @@ gitguard --dry-run --rule README_EXISTS <repos-dir>
 | SETTINGS_DANGEROUS | No dangerous permission patterns (e.g. `Bash(*:*)`) |
 | SETTINGS_CLEAN | No redundant permissions or unmigrated WebFetch domains |
 | PYTHON_MIN_VERSION | requires-python field in pyproject.toml |
-| DEPENDABOT_EXISTS | .github/dependabot.yml exists |
-| PRECOMMIT_GITLEAKS | .pre-commit-config.yaml has gitleaks hook (skips .github) |
 | PENDING_COMMITS | No uncommitted changes or unpushed commits |
 | STALE_BRANCHES | No merged or inactive (>90d) branches |
 | CI_WORKFLOW | Python repos reference test.yml/release.yml/pytest |
 | RELEASE_WORKFLOW | Versioned projects reference release.yml |
-| PII_SCAN | CI workflows include PII scanning (skips if no workflows) |
 | REPO_DESCRIPTION | GitHub description matches README tagline |
 
 ## Report

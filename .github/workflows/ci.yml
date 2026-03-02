@@ -16,6 +16,3 @@ jobs:
     with:
       python-version: ${{ inputs.python-version }}
       pytest-args: ${{ inputs.pytest-args }}
-
-  pii-scan:
-    uses: tsilva/.github/.github/workflows/pii-scan.yml@main

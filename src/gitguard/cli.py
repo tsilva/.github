@@ -220,7 +220,7 @@ def _build_create_parser() -> argparse.ArgumentParser:
         "template_type",
         nargs="?",
         default=None,
-        choices=["python-cli", "python-sandbox", "generic"],
+        choices=["python-cli", "python-sandbox", "generic", "react-native"],
         help="Template type (auto-detected for sandbox-* names)",
     )
     parser.add_argument(
@@ -373,7 +373,7 @@ def main(argv: list[str] | None = None) -> None:
                     template_type = "python-sandbox"
                 else:
                     print(
-                        "Error: template_type is required (python-cli, python-sandbox, or generic)",
+                        "Error: template_type is required (python-cli, python-sandbox, generic, or react-native)",
                         file=sys.stderr,
                     )
                     sys.exit(1)
