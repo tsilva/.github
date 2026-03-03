@@ -18,9 +18,9 @@ Install the CLI from the `.github` repo:
 uv tool install gitguard --from /path/to/.github
 ```
 
-**Required skills (for AI-dependent fixes):**
-- `project-readme-author` — README creation/optimization
-- `project-logo-author` — logo generation
+**Required tools (for AI-dependent fixes):**
+- `project-readme-author` skill — README creation/optimization
+- `repologogen` CLI — logo generation
 - `mcp__image-tools__get_image_metadata` — logo verification
 
 ## Operations
@@ -56,8 +56,8 @@ After running `gitguard`, check output for remaining manual issues. For each rep
    - If README.md is missing: use `/project-readme-author create` to generate one
    - If README exists but is stale/placeholder: use `/project-readme-author optimize` to update it
 3. For **LOGO** failures (LOGO_EXISTS):
-   - Use `/project-logo-author` to generate a logo
-   - Verify the result: must be at `logo.png` in repo root, transparent background, includes project name as text
+   - Run `repologogen .` to generate a logo
+   - Verify the result: must be at `logo.png` in repo root, transparent background
    - Check with `mcp__image-tools__get_image_metadata` and visual inspection
    - If verification fails, regenerate with specific corrections
 4. For **TRACKED_IGNORED**: list the files and suggest `git rm --cached` commands

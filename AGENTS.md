@@ -14,7 +14,7 @@ Modular reusable workflows triggered via `workflow_call`. Each workflow handles 
 
 The primary maintenance tool. A Python package in `src/gitguard/` installable via `uv tool install` or `uv pip install -e .`. Each compliance rule is a self-contained class in `src/gitguard/rules/` with `check()` and `fix()` methods, auto-discovered via `pkgutil`.
 
-Commands: `gitguard [repos-dir]` (clone missing repos, fetch updates, check+fix), `gitguard --dry-run` (preview), `gitguard commit` (AI-assisted commit+push), `gitguard report`, `gitguard logo` (AI-generate repo logo)
+Commands: `gitguard [repos-dir]` (clone missing repos, fetch updates, check+fix), `gitguard --dry-run` (preview), `gitguard commit` (AI-assisted commit+push), `gitguard report`, `gitguard logo` (delegates to `repologogen` CLI)
 
 ### Scripts
 
@@ -109,11 +109,11 @@ gitguard [repos-dir] [-f PAT] [-j|--json] [-n|--dry-run] [--rule ID] [--category
 gitguard commit [repos-dir] [-f PAT] [-n|--dry-run]
 gitguard report taglines|tracked-ignored|branches [repos-dir] [-f PAT]
 gitguard rename <old-name> <new-name> [repos-dir] [-n|--dry-run]
-gitguard logo <repo-name> [repos-dir] [-n|--dry-run] [--show-config]
+gitguard logo <repo-name> [repos-dir] [-n|--dry-run]
 gitguard create <repo-name> <template-type> [-d DESC] [repos-dir] [-n|--dry-run]
 ```
 
-Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, renames the Python package directory and `.code-workspace` file if present, performs a global search-replace of the old name across all tracked text files, regenerates `uv.lock` if `pyproject.toml` exists, then warns about cross-repo references. The `logo` subcommand generates an AI logo image for a single repo using image generation. The `create` subcommand creates a new repo from a GitHub template (`python-cli`, `python-sandbox`, `generic`, or `react-native`), clones it, replaces template placeholders (`my-project`/`my_project`/description), renames the package directory for python-cli templates, and commits+pushes. Names starting with `sandbox-` auto-detect as `python-sandbox`.
+Running with no flags clones missing repos, fetches updates for clean repos, then performs a single-pass check+fix cycle: each rule is checked, and if it fails, auto-fixed and re-verified. Dirty repos skip fetch but still have rules applied. Use `--dry-run` to preview what would be cloned/fixed without modifying anything. The `commit` subcommand finds dirty repos, generates AI commit messages, and prompts for interactive approval before committing and pushing. The `rename` subcommand renames a repo on GitHub, locally, updates the git remote URL, renames the Python package directory and `.code-workspace` file if present, performs a global search-replace of the old name across all tracked text files, regenerates `uv.lock` if `pyproject.toml` exists, then warns about cross-repo references. The `logo` subcommand delegates to the `repologogen` CLI to generate an AI logo image for a single repo (requires `repologogen` to be installed separately). The `create` subcommand creates a new repo from a GitHub template (`python-cli`, `python-sandbox`, `generic`, or `react-native`), clones it, replaces template placeholders (`my-project`/`my_project`/description), renames the package directory for python-cli templates, and commits+pushes. Names starting with `sandbox-` auto-detect as `python-sandbox`.
 
 ### Package Structure
 
@@ -128,6 +128,7 @@ Running with no flags clones missing repos, fetches updates for clean repos, the
 - `src/gitguard/rules/_registry.py` — auto-discovery + dependency-aware ordering
 - `src/gitguard/settings_optimizer.py` — Claude Code settings analyzer (from `scripts/settings_optimizer.py`)
 - `src/gitguard/tagline.py` — README tagline extractor (from `scripts/lib/extract_tagline.py`)
+- `src/gitguard/commands/logo.py` — thin wrapper that delegates to `repologogen` CLI
 - `src/gitguard/templates/` — LICENSE, CLAUDE.md
 
 ### Adding a New Rule

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -60,6 +61,7 @@ class Repo:
     def is_dirty(self) -> bool:
         if "is_dirty" not in self._cache:
             from gitguard import git
+
             self._cache["is_dirty"] = bool(git.status_porcelain(self.path))
         return self._cache["is_dirty"]
 
@@ -112,8 +114,6 @@ class Repo:
         if not pyproject.is_file():
             return None
         try:
-            import tomllib
-
             with open(pyproject, "rb") as f:
                 data = tomllib.load(f)
             project = data.get("project", {})
@@ -128,7 +128,7 @@ class Repo:
                     return path
                 return "pyproject.toml"
             return None
-        except Exception:
+        except (tomllib.TOMLDecodeError, OSError):
             return None
 
     def _parse_package_name(self) -> str | None:
@@ -136,12 +136,10 @@ class Repo:
         if not pyproject.is_file():
             return None
         try:
-            import tomllib
-
             with open(pyproject, "rb") as f:
                 data = tomllib.load(f)
             return data.get("project", {}).get("name") or None
-        except Exception:
+        except (tomllib.TOMLDecodeError, OSError):
             return None
 
     def _parse_cli_scripts(self) -> dict[str, str]:
@@ -149,13 +147,11 @@ class Repo:
         if not pyproject.is_file():
             return {}
         try:
-            import tomllib
-
             with open(pyproject, "rb") as f:
                 data = tomllib.load(f)
             scripts = data.get("project", {}).get("scripts", {})
             return dict(scripts) if scripts else {}
-        except Exception:
+        except (tomllib.TOMLDecodeError, OSError):
             return {}
 
     def _check_version(self) -> bool:
@@ -163,15 +159,13 @@ class Repo:
         if not pyproject.is_file():
             return False
         try:
-            import tomllib
-
             with open(pyproject, "rb") as f:
                 data = tomllib.load(f)
             project = data.get("project", {})
             if project.get("version", ""):
                 return True
             return "version" in project.get("dynamic", [])
-        except Exception:
+        except (tomllib.TOMLDecodeError, OSError):
             return False
 
     def _detect_ci_workflow(self) -> bool:
@@ -185,7 +179,7 @@ class Repo:
                 content = wf_file.read_text(encoding="utf-8", errors="replace")
                 if re.search(r"tsilva/\.github/.*/(test|release|ci)\.yml|pytest", content):
                     return True
-            except Exception:
+            except (OSError, UnicodeDecodeError):
                 continue
         return False
 
@@ -196,7 +190,9 @@ class Repo:
         try:
             result = subprocess.run(
                 ["gh", "repo", "view", gh_repo, "--json", "isArchived", "-q", ".isArchived"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             return result.returncode == 0 and result.stdout.strip() == "true"
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -237,12 +233,10 @@ class Repo:
         if not pyproject.is_file():
             return False
         try:
-            import tomllib
-
             with open(pyproject, "rb") as f:
                 data = tomllib.load(f)
             return bool(data.get("project", {}).get(field_name, ""))
-        except Exception:
+        except (tomllib.TOMLDecodeError, OSError):
             return False
 
     @staticmethod

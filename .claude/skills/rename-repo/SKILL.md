@@ -12,9 +12,9 @@ Full rename orchestration for `tsilva` org repos. Runs `gitguard rename` for all
 
 **Required tools:** git, gh CLI, gitguard, uv
 
-**Required skills:**
-- `project-logo-author` — logo regeneration
-- `project-readme-author` — README regeneration
+**Required tools:**
+- `repologogen` CLI — logo regeneration
+- `project-readme-author` skill — README regeneration
 
 ## Arguments
 
@@ -62,13 +62,15 @@ If a `tests/` directory exists, run tests. A failure is a **warning only** — d
 
 ### Step 4: Regenerate Logo
 
-`cd` into the renamed repo directory, then invoke the logo generation skill:
+`cd` into the renamed repo directory, then regenerate the logo:
 
-Use `/project-logo-author` to regenerate the logo for the project under its new name.
+```bash
+repologogen .
+```
 
 The logo must exist at `logo.png` in the repo root before proceeding to Step 5.
 
-**Why before README:** Calling `project-logo-author` directly ensures the logo is generated with user config from `~/.claude/project-logo-author.json`. When `readme-author` runs in Step 5, it detects `logo.png` already exists and skips its own logo generation — sidestepping any settings passthrough issues.
+**Why before README:** Generating the logo first (with user config from `~/.repologogen/config.yaml`) ensures `logo.png` exists when `readme-author` runs in Step 5 — it detects the file and includes it in the README.
 
 ### Step 5: Regenerate README
 

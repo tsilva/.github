@@ -18,9 +18,9 @@ Install the CLI from the `.github` repo:
 uv tool install gitguard --from /path/to/.github
 ```
 
-**Required skills:**
-- `project-readme-author` — README generation
-- `project-logo-author` — logo generation
+**Required tools:**
+- `project-readme-author` skill — README generation
+- `repologogen` CLI — logo generation
 
 ## Arguments
 
@@ -56,11 +56,11 @@ If this fails, stop and report the error.
 
 ### Step 3: Generate Logo
 
-`cd` into the repo directory, then delegate to the logo generation skill:
+`cd` into the repo directory, then generate the logo:
 
-Use `/project-logo-author` to generate a logo for the project.
-
-**`uv run` pitfall:** The logo and README skills use `uv run` for helper scripts, which validates `pyproject.toml` in CWD. Template sandbox/generic repos have minimal pyproject.toml (no `version` field) that fails `uv run`. **Do NOT add `version` to fix this** — it triggers gitguard's `RELEASE_WORKFLOW` rule. Instead, use the skill's fallback config loading (Read tool) or run scripts from a directory with a valid pyproject.toml.
+```bash
+repologogen .
+```
 
 The logo must exist at `logo.png` in the repo root before proceeding.
 

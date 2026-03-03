@@ -200,12 +200,6 @@ def _build_logo_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show prompt without generating image",
     )
-    parser.add_argument(
-        "--show-config",
-        dest="show_config",
-        action="store_true",
-        help="Display merged configuration and exit",
-    )
     return parser
 
 
@@ -360,7 +354,7 @@ def main(argv: list[str] | None = None) -> None:
 
             from gitguard.commands.logo import run_logo
 
-            sys.exit(run_logo(repo_path, args.dry_run, args.show_config))
+            sys.exit(run_logo(repo_path, args.dry_run))
 
         elif command == "create":
             parser = _build_create_parser()

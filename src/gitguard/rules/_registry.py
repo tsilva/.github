@@ -19,7 +19,7 @@ _CANONICAL_ORDER = [
     "CLAUDE_MD_EXISTS",
     "CLAUDE_MD_SYMLINK",
     "PYTHON_PYPROJECT",
-    # Dependent rules: README (depends on README_EXISTS, LICENSE_EXISTS, LOGO_EXISTS)
+    # Dependent rules: README (README_EXISTS must come first as other README_* rules depend on it)
     "README_EXISTS",
     "README_CURRENT",
     "README_LICENSE",
