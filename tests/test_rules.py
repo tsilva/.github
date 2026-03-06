@@ -13,6 +13,7 @@ def test_all_rules_discovered():
     rules = discover_rules()
     rule_ids = {r.id for r in rules}
     expected = {
+        "ARCHIVED_LOCATION",
         "ARCHIVED_MARKER",
         "DEFAULT_BRANCH",
         "README_EXISTS",
@@ -53,9 +54,10 @@ def test_all_rules_discovered():
 
 def test_canonical_order():
     rules = discover_rules()
-    assert rules[0].id == "ARCHIVED_MARKER"
-    assert rules[1].id == "DEFAULT_BRANCH"
-    assert rules[2].id == "LICENSE_EXISTS"
+    assert rules[0].id == "ARCHIVED_LOCATION"
+    assert rules[1].id == "ARCHIVED_MARKER"
+    assert rules[2].id == "DEFAULT_BRANCH"
+    assert rules[3].id == "LICENSE_EXISTS"
     assert rules[-1].id == "REPO_DESCRIPTION"
 
 
@@ -438,6 +440,77 @@ def test_archived_marker_is_archived_only():
     assert ArchivedMarkerRule.archived_only is True
 
 
+def test_archived_location_fail(bare_repo):
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.archived_location import ArchivedLocationRule
+
+    result = ArchivedLocationRule().check(repo)
+    assert result.status == Status.FAIL
+    assert ".archived/" in result.message
+
+
+def test_archived_location_pass(bare_repo, tmp_path):
+    # Move the repo into a .archived/ folder
+    archived_dir = tmp_path / ".archived"
+    archived_dir.mkdir(parents=True, exist_ok=True)
+    repo_in_archived = archived_dir / bare_repo.name
+    bare_repo.rename(repo_in_archived)
+
+    repo = Repo(path=repo_in_archived)
+    from gitguard.rules.archived_location import ArchivedLocationRule
+
+    result = ArchivedLocationRule().check(repo)
+    assert result.status == Status.PASS
+
+
+def test_archived_location_is_archived_only():
+    from gitguard.rules.archived_location import ArchivedLocationRule
+
+    assert ArchivedLocationRule.archived_only is True
+
+
+def test_archived_location_fix_moves_repo(bare_repo, tmp_path):
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.archived_location import ArchivedLocationRule
+
+    rule = ArchivedLocationRule()
+
+    # Check that the repo is not in .archived/
+    assert rule.check(repo).status == Status.FAIL
+
+    # Fix should move it
+    outcome = rule.fix(repo)
+    assert outcome.status == "fixed"
+    assert "moved" in outcome.message.lower() or "Moved" in outcome.message
+
+    # After fix, repo should be in .archived/
+    archived_repo_path = bare_repo.parent / ".archived" / bare_repo.name
+    assert archived_repo_path.is_dir()
+    assert not bare_repo.exists()
+
+
+def test_archived_location_fix_dry_run(bare_repo):
+    repo = Repo(path=bare_repo)
+    from gitguard.rules.archived_location import ArchivedLocationRule
+
+    outcome = ArchivedLocationRule().fix(repo, dry_run=True)
+    assert outcome.status == "fixed"
+    assert "Would move" in outcome.message
+
+    # Verify nothing was actually moved
+    assert bare_repo.exists()
+    assert not (bare_repo.parent / ".archived" / bare_repo.name).exists()
+
+
+def test_archived_location_order_before_marker():
+    """ARCHIVED_LOCATION should come before ARCHIVED_MARKER in canonical order."""
+    rules = discover_rules()
+    rule_ids = [r.id for r in rules]
+    location_idx = rule_ids.index("ARCHIVED_LOCATION")
+    marker_idx = rule_ids.index("ARCHIVED_MARKER")
+    assert location_idx < marker_idx
+
+
 def test_gitignore_check_allows_repo_specific_rules(tmp_repo):
     """Rules below the managed section don't cause check() to fail."""
     from gitguard.rules.gitignore import (
@@ -487,9 +560,7 @@ def test_gitignore_fix_preserves_negation_order(tmp_repo):
     _, result_repo_lines = _parse_sectioned(result_content)
 
     # Negation order must be preserved
-    wheel_idx = next(
-        i for i, l in enumerate(result_repo_lines) if l.strip() == "wheels/*"
-    )
+    wheel_idx = next(i for i, l in enumerate(result_repo_lines) if l.strip() == "wheels/*")
     negation_idx = next(
         i for i, l in enumerate(result_repo_lines) if l.strip() == "!wheels/stable.whl"
     )
@@ -572,12 +643,11 @@ def test_tracked_ignored_respects_negation(tmp_repo):
         capture_output=True,
         text=True,
     )
-    assert ".env.example" in tracked.stdout, (
-        ".env.example should remain tracked after fix()"
-    )
+    assert ".env.example" in tracked.stdout, ".env.example should remain tracked after fix()"
 
 
 # --- README_EXISTS fix() ---
+
 
 def test_readme_exists_fix_creates_scaffold(bare_repo):
     repo = Repo(path=bare_repo)
@@ -607,14 +677,19 @@ def test_readme_exists_fix_dry_run(bare_repo):
 
 # --- README_CI_BADGE fix() ---
 
+
 def test_readme_ci_badge_fix_inserts_badge(tmp_repo):
     # Add CI workflow
     wf_dir = tmp_repo / ".github" / "workflows"
     wf_dir.mkdir(parents=True, exist_ok=True)
-    (wf_dir / "ci.yml").write_text("on: push\njobs:\n  test:\n    uses: tsilva/.github/.github/workflows/test.yml@main\n")
+    (wf_dir / "ci.yml").write_text(
+        "on: push\njobs:\n  test:\n    uses: tsilva/.github/.github/workflows/test.yml@main\n"
+    )
 
     # Write a README with heading but no badge
-    (tmp_repo / "README.md").write_text("# test-repo\n\nA repo without a badge.\n\n## License\n\nMIT\n")
+    (tmp_repo / "README.md").write_text(
+        "# test-repo\n\nA repo without a badge.\n\n## License\n\nMIT\n"
+    )
 
     repo = Repo(path=tmp_repo)
     from gitguard.rules.readme_content import ReadmeCiBadgeRule
@@ -654,14 +729,23 @@ def test_readme_ci_badge_fix_dry_run(tmp_repo):
 
 # --- STALE_BRANCHES fix() ---
 
+
 def test_stale_branches_fix_deletes_merged(tmp_repo):
     # Create and merge a branch
-    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "-b", "feature-x"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "checkout", "-b", "feature-x"], capture_output=True, check=True
+    )
     (tmp_repo / "feature.txt").write_text("feature")
     subprocess.run(["git", "-C", str(tmp_repo), "add", "-A"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(tmp_repo), "commit", "-m", "feature"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "main"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(tmp_repo), "merge", "feature-x"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "commit", "-m", "feature"], capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "checkout", "main"], capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "merge", "feature-x"], capture_output=True, check=True
+    )
 
     repo = Repo(path=tmp_repo)
     from gitguard.rules.stale_branches import StaleBranchesRule
@@ -681,12 +765,20 @@ def test_stale_branches_fix_deletes_merged(tmp_repo):
 
 
 def test_stale_branches_fix_dry_run(tmp_repo):
-    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "-b", "feature-y"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "checkout", "-b", "feature-y"], capture_output=True, check=True
+    )
     (tmp_repo / "fy.txt").write_text("fy")
     subprocess.run(["git", "-C", str(tmp_repo), "add", "-A"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(tmp_repo), "commit", "-m", "fy"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(tmp_repo), "checkout", "main"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(tmp_repo), "merge", "feature-y"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "commit", "-m", "fy"], capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "checkout", "main"], capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_repo), "merge", "feature-y"], capture_output=True, check=True
+    )
 
     repo = Repo(path=tmp_repo)
     from gitguard.rules.stale_branches import StaleBranchesRule
@@ -696,20 +788,34 @@ def test_stale_branches_fix_dry_run(tmp_repo):
     assert "feature-y" in outcome.message
     # Branch should still exist
     from gitguard.git import has_branch
+
     assert has_branch(tmp_repo, "feature-y")
 
 
 # --- DEFAULT_BRANCH fix() ---
 
+
 def test_default_branch_fix_renames_master(tmp_path):
     repo_path = tmp_path / "master-repo"
     repo_path.mkdir()
-    subprocess.run(["git", "init", str(repo_path), "--initial-branch=master"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(repo_path), "config", "user.name", "Test"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(repo_path), "config", "user.email", "t@t.com"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "init", str(repo_path), "--initial-branch=master"], capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo_path), "config", "user.name", "Test"],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo_path), "config", "user.email", "t@t.com"],
+        capture_output=True,
+        check=True,
+    )
     (repo_path / ".gitkeep").write_text("")
     subprocess.run(["git", "-C", str(repo_path), "add", "-A"], capture_output=True, check=True)
-    subprocess.run(["git", "-C", str(repo_path), "commit", "-m", "init"], capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-C", str(repo_path), "commit", "-m", "init"], capture_output=True, check=True
+    )
 
     repo = Repo(path=repo_path)
     from gitguard.rules.default_branch import DefaultBranchRule
@@ -728,6 +834,7 @@ def test_default_branch_fix_renames_master(tmp_path):
 
 # --- TESTS_EXIST rule ---
 
+
 def test_tests_exist_skip_non_cli(tmp_repo):
     repo = Repo(path=tmp_repo)
     from gitguard.rules.tests_exist import TestsExistRule
@@ -738,7 +845,9 @@ def test_tests_exist_skip_non_cli(tmp_repo):
 
 
 def test_tests_exist_pass_with_test_file(tmp_repo):
-    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n[build-system]\nbuild-backend = "hatchling.build"\n')
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "test"\nversion = "0.1.0"\n[build-system]\nbuild-backend = "hatchling.build"\n'
+    )
     tests_dir = tmp_repo / "tests"
     tests_dir.mkdir()
     (tests_dir / "test_main.py").write_text("def test_foo(): pass\n")
@@ -754,7 +863,9 @@ def test_tests_exist_pass_with_test_file(tmp_repo):
 
 
 def test_tests_exist_fail_no_tests(tmp_repo):
-    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n[build-system]\nbuild-backend = "hatchling.build"\n')
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "test"\nversion = "0.1.0"\n[build-system]\nbuild-backend = "hatchling.build"\n'
+    )
     repo = Repo(path=tmp_repo)
     from gitguard.rules.tests_exist import TestsExistRule
 
@@ -767,6 +878,7 @@ def test_tests_exist_fail_no_tests(tmp_repo):
 
 # --- RUFF_CONFIG rule ---
 
+
 def test_ruff_config_skip_non_python(tmp_repo):
     repo = Repo(path=tmp_repo)
     from gitguard.rules.ruff_config import RuffConfigRule
@@ -777,7 +889,9 @@ def test_ruff_config_skip_non_python(tmp_repo):
 
 
 def test_ruff_config_pass_with_pyproject_section(tmp_repo):
-    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n\n[tool.ruff]\nline-length = 88\n')
+    (tmp_repo / "pyproject.toml").write_text(
+        '[project]\nname = "test"\n\n[tool.ruff]\nline-length = 88\n'
+    )
     repo = Repo(path=tmp_repo)
     from gitguard.rules.ruff_config import RuffConfigRule
 
@@ -787,7 +901,7 @@ def test_ruff_config_pass_with_pyproject_section(tmp_repo):
 
 
 def test_ruff_config_pass_with_ruff_toml(tmp_repo):
-    (tmp_repo / "ruff.toml").write_text('line-length = 88\n')
+    (tmp_repo / "ruff.toml").write_text("line-length = 88\n")
     (tmp_repo / "pyproject.toml").write_text('[project]\nname = "test"\n')
     repo = Repo(path=tmp_repo)
     from gitguard.rules.ruff_config import RuffConfigRule
@@ -826,10 +940,9 @@ def test_ruff_config_fix_dry_run(tmp_repo):
 
 # --- Repo.version_source_path ---
 
+
 def test_version_source_path_static(tmp_repo):
-    (tmp_repo / "pyproject.toml").write_text(
-        '[project]\nname = "mypkg"\nversion = "1.0.0"\n'
-    )
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "mypkg"\nversion = "1.0.0"\n')
     repo = Repo(path=tmp_repo)
     assert repo.version_source_path == "pyproject.toml"
 
@@ -845,9 +958,7 @@ def test_version_source_path_dynamic_hatch(tmp_repo):
 
 def test_version_source_path_dynamic_no_hatch_path(tmp_repo):
     """Dynamic version without hatch path falls back to pyproject.toml."""
-    (tmp_repo / "pyproject.toml").write_text(
-        '[project]\nname = "mypkg"\ndynamic = ["version"]\n'
-    )
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "mypkg"\ndynamic = ["version"]\n')
     repo = Repo(path=tmp_repo)
     assert repo.version_source_path == "pyproject.toml"
 
@@ -864,6 +975,7 @@ def test_version_source_path_no_pyproject(bare_repo):
 
 
 # --- CliReleaseWorkflowRule ---
+
 
 def _make_cli_repo(repo_path):
     """Write a minimal CLI pyproject.toml with static version."""
@@ -1051,6 +1163,7 @@ def test_cli_release_workflow_fix_dry_run(tmp_repo):
 
 # --- CLI_PYPI_ENVIRONMENT in rule discovery ---
 
+
 def test_cli_pypi_environment_discovered():
     rules = discover_rules()
     rule_ids = [r.id for r in rules]
@@ -1067,10 +1180,9 @@ def test_cli_pypi_environment_after_cli_release_workflow():
 
 # --- RELEASE_WORKFLOW pattern matches inline pattern ---
 
+
 def test_release_workflow_pattern_matches_inline(tmp_repo):
-    (tmp_repo / "pyproject.toml").write_text(
-        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
-    )
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "mypkg"\nversion = "0.1.0"\n')
     wf_dir = tmp_repo / ".github" / "workflows"
     wf_dir.mkdir(parents=True, exist_ok=True)
     (wf_dir / "release.yml").write_text(_INLINE_RELEASE_WF)
@@ -1083,9 +1195,7 @@ def test_release_workflow_pattern_matches_inline(tmp_repo):
 
 
 def test_release_workflow_pattern_matches_old_shared(tmp_repo):
-    (tmp_repo / "pyproject.toml").write_text(
-        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
-    )
+    (tmp_repo / "pyproject.toml").write_text('[project]\nname = "mypkg"\nversion = "0.1.0"\n')
     wf_dir = tmp_repo / ".github" / "workflows"
     wf_dir.mkdir(parents=True, exist_ok=True)
     (wf_dir / "release.yml").write_text(_OLD_SHARED_WF)
@@ -1098,6 +1208,7 @@ def test_release_workflow_pattern_matches_old_shared(tmp_repo):
 
 
 # --- CLI_RELEASE_MAKEFILE ---
+
 
 def test_cli_release_makefile_discovered():
     rules = discover_rules()
