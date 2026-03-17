@@ -1016,7 +1016,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: pypa/gh-action-pypi-publish@release/v1
 """
 
