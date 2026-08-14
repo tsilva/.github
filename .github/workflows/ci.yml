@@ -9,10 +9,16 @@ on:
       pytest-args:
         type: string
         default: ""
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    uses: tsilva/.github/.github/workflows/test.yml@main
+    uses: ./.github/workflows/test.yml
     with:
-      python-version: ${{ inputs.python-version }}
-      pytest-args: ${{ inputs.pytest-args }}
+      python-version: ${{ inputs.python-version || '3.12' }}
+      pytest-args: ${{ inputs.pytest-args || '' }}
