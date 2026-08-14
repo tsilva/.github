@@ -8,6 +8,13 @@ import subprocess
 from gitguard.rules import Category, CheckResult, FixOutcome, Rule, Status
 from gitguard.templates import load_template
 
+REMOTE_USES_RE = re.compile(r"\buses:\s*[^\s#@]+@([^\s#]+)")
+FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
+
+
+def _has_mutable_remote_uses(content):
+    return any(not FULL_SHA_RE.fullmatch(ref) for ref in REMOTE_USES_RE.findall(content))
+
 
 class CliBuildBackendRule(Rule):
     id = "CLI_BUILD_BACKEND"
@@ -74,15 +81,22 @@ class CliReleaseWorkflowRule(Rule):
                 continue
 
             has_inline_publish = bool(re.search(r"pypa/gh-action-pypi-publish", content))
-            has_old_shared = bool(re.search(r"release\.yml@main", content)) and not has_inline_publish
+            has_private_shared = "tsilva/.github/" in content
 
-            if has_old_shared:
+            if has_private_shared:
                 return CheckResult(
                     Status.FAIL,
-                    "Release workflow uses shared release.yml@main (breaks PyPI trusted publishing); migrate to inline pattern",
+                    "Release workflow uses the private tsilva/.github repository; "
+                    "migrate to the self-contained pattern",
                 )
 
             if has_inline_publish:
+                if _has_mutable_remote_uses(content):
+                    return CheckResult(
+                        Status.FAIL,
+                        "Release workflow contains a remote action that is not pinned "
+                        "to a full commit SHA",
+                    )
                 # Check that trigger path matches version_source_path
                 version_path = repo.version_source_path
                 if version_path:
@@ -115,7 +129,11 @@ class CliReleaseWorkflowRule(Rule):
                     continue
                 try:
                     content = wf_file.read_text(encoding="utf-8", errors="replace")
-                    if re.search(r"pypa/gh-action-pypi-publish", content):
+                    if (
+                        re.search(r"pypa/gh-action-pypi-publish", content)
+                        and "tsilva/.github/" not in content
+                        and not _has_mutable_remote_uses(content)
+                    ):
                         if re.search(
                             r"paths:\s*\[" + re.escape(version_path) + r"\]", content
                         ):

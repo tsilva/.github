@@ -61,7 +61,7 @@ ReleaseWorkflowRule = _make(
     id="RELEASE_WORKFLOW",
     name="Release workflow for versioned projects",
     category=Category.CICD,
-    pattern=r"tsilva/\.github/.*/(release|publish-pypi)\.yml|pypa/gh-action-pypi-publish",
+    pattern=r"pypa/gh-action-pypi-publish|gh release create|softprops/action-gh-release",
     fail_message="Versioned project missing release workflow",
     applies_check=lambda r: r.has_pyproject and r.has_version,
 )

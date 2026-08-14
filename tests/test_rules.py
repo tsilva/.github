@@ -1006,18 +1006,15 @@ concurrency:
   group: release
   cancel-in-progress: false
 jobs:
-  test:
-    uses: tsilva/.github/.github/workflows/test.yml@main
   publish:
-    needs: [test]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 """
 
 _OLD_SHARED_WF = """\
@@ -1078,7 +1075,8 @@ def test_cli_release_workflow_fail_trigger_path_mismatch(tmp_repo):
     (wf_dir / "release.yml").write_text(
         "name: Release\non:\n  push:\n    branches: [main]\n    paths: [pyproject.toml]\n"
         "jobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n"
-        "      - uses: pypa/gh-action-pypi-publish@release/v1\n"
+        "      - uses: pypa/gh-action-pypi-publish@"
+        "dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1\n"
     )
 
     repo = Repo(path=tmp_repo)
@@ -1204,7 +1202,7 @@ def test_release_workflow_pattern_matches_old_shared(tmp_repo):
     from gitguard.rules.workflow_search import ReleaseWorkflowRule
 
     result = ReleaseWorkflowRule().check(repo)
-    assert result.status == Status.PASS
+    assert result.status == Status.FAIL
 
 
 # --- CLI_RELEASE_MAKEFILE ---

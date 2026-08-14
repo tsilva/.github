@@ -3,7 +3,7 @@
 
   # .github
 
-  Shared reusable GitHub Actions workflows and org-wide maintenance tooling for the `tsilva` organization
+  Private GitHub Actions building blocks and fleet maintenance tooling for the `tsilva` repositories
 
   [Workflows](#workflows) · [CLI](#cli-gitguard) · [Usage](#usage)
 </div>
@@ -12,12 +12,12 @@
 
 [![CI](https://github.com/tsilva/.github/actions/workflows/ci.yml/badge.svg)](https://github.com/tsilva/.github/actions/workflows/ci.yml)
 
-- Modular workflows — each handles a single concern, composable together
+- Modular internal workflows — same-repository calls use commit-bound relative references
 - PyPI publishing — build, release, and publish via trusted publishing
 - Auto-tagging — version extracted from `pyproject.toml`, skips existing tags
-- Testing — pytest via reusable workflow
-- Repo compliance — audit and enforce org standards across all repos via Python CLI
-- One-line integration — `uses: tsilva/.github/...@main` and `secrets: inherit`
+- Testing — pytest via a reusable workflow within this repository
+- Repo compliance — audit and enforce repository standards via Python CLI
+- Supply-chain controls — generated workflows use full-SHA action pins and least-privilege jobs
 - Repo templates — pre-compliant starting points for new projects
 - Repo bootstrapping — automate new repo setup from template to full compliance in one command
 
@@ -25,24 +25,20 @@
 
 | Workflow | Purpose | Key Details |
 |----------|---------|-------------|
-| `release.yml` | Composed release flow | Chains test + publish/release |
+| `release.yml` | Repository release flow | Calls local test and publish workflows |
 | `publish-pypi.yml` | Build, tag, release, publish | Uses `uv build` + trusted publishing |
 | `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
 | `test.yml` | Run tests | Uses pytest via uv |
 | `ci.yml` | PR-time checks | Wraps test workflow |
-| `audit.yml` | Scheduled compliance audit | Weekly + on-demand, all org repos |
 
-### `release.yml` (Composer)
+### `release.yml`
 
-The main entry point for most repos. Chains individual workflows together.
-
-**Inputs:**
-- `publish_to_pypi` (boolean, default: `true`) — set `false` for non-Python repos
+The release entry point for this repository. Other repositories receive a self-contained, SHA-pinned release workflow from `gitguard` rather than calling this private repository.
 
 **Flow:**
 1. Runs tests
-2. If `publish_to_pypi`: builds with `uv`, creates release with artifacts, publishes to PyPI
-3. If not: creates a GitHub release without artifacts
+2. Builds once in a read-only job and stores the artifacts
+3. Creates the GitHub release and publishes to PyPI in separate least-privilege jobs
 
 ## CLI (`gitguard`)
 
@@ -190,48 +186,27 @@ Use the `bootstrap-repo` skill to go from zero to fully compliant in a single in
 
 ## Usage
 
-### Full release (Python projects)
+### Install or repair a Python release workflow
 
-```yaml
-on:
-  push:
-    branches: [main]
-
-jobs:
-  release:
-    uses: tsilva/.github/.github/workflows/release.yml@main
-    secrets: inherit
+```bash
+gitguard /path/to/repos --rule CLI_RELEASE_WORKFLOW
 ```
 
-### Release without PyPI
+The generated `.github/workflows/release.yml` is self-contained, pins every remote action to a full commit SHA, and separates build, GitHub release, and PyPI publishing permissions.
+
+### Internal reusable workflows
 
 ```yaml
-on:
-  push:
-    branches: [main]
-
 jobs:
-  release:
-    uses: tsilva/.github/.github/workflows/release.yml@main
-    with:
-      publish_to_pypi: false
-    secrets: inherit
+  test:
+    uses: ./.github/workflows/test.yml
 ```
 
-### CI checks on PRs
-
-```yaml
-on:
-  pull_request:
-
-jobs:
-  ci:
-    uses: tsilva/.github/.github/workflows/ci.yml@main
-```
+Relative calls execute the workflow from the same commit. Cross-repository use is intentionally disabled while this repository remains private.
 
 ## Requirements
 
-Caller repos need:
+Generated release workflows need:
 - `pyproject.toml` with `version` field (for release workflows)
 - `pypi` environment configured (for PyPI publishing with trusted publishing)
 
