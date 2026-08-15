@@ -18,9 +18,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Review dependency changes
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          fail-on-severity: high
-          fail-on-scopes: runtime, development, unknown
-          retry-on-snapshot-warnings: true
+          python-version: "3.14"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Validate portable lock and registry-only sources
+        run: |
+          uv lock --config-file uv.toml --check
+          if grep -Eq 'source = \{ (git|url|path|directory) =' uv.lock; then
+            echo "Non-registry dependency source found in uv.lock" >&2
+            exit 1
+          fi
+          unexpected_editable="$(grep -E 'source = \{ editable =' uv.lock | grep -Fv 'source = { editable = "." }' || true)"
+          if [ -n "$unexpected_editable" ]; then
+            echo "Unexpected editable dependency source found in uv.lock" >&2
+            exit 1
+          fi
+      - name: Audit frozen dependency graph
+        run: uv audit --frozen
