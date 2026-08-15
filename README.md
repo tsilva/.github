@@ -28,8 +28,9 @@
 | `release.yml` | Repository release flow | Calls local test and publish workflows |
 | `publish-pypi.yml` | Build, tag, release, publish | Uses `uv build` + trusted publishing |
 | `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
-| `test.yml` | Run tests | Uses pytest via uv |
+| `test.yml` | Validate Python | Frozen sync, lock/audit, focused Ruff, pytest, and package build |
 | `ci.yml` | PR-time checks | Wraps test workflow |
+| `dependency-review.yml` | Review dependency changes | Portable lock, registry-source, and frozen audit gate |
 
 ### `release.yml`
 

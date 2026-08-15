@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = [
+    "cryptography>=50.0.0",
     "hatch>=1.17.1",
     "pytest>=9.1.1",
     "ruff>=0.16.1",
