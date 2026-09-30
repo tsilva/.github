@@ -1,0 +1,178 @@
+name: Sync README tagline
+
+on:
+  workflow_call:
+    inputs:
+      readme-path:
+        description: Path to the authoritative README in the caller repository
+        type: string
+        default: README.md
+      validate-only:
+        description: Validate the proposed README without updating repository metadata
+        type: boolean
+        default: false
+    secrets:
+      description-token:
+        description: Token with Contents read and Administration write for the caller repository
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: description-sync-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate and sync the authoritative tagline
+        env:
+          README_PATH: ${{ inputs.readme-path }}
+          VALIDATE_ONLY: ${{ inputs.validate-only }}
+          READ_TOKEN: ${{ github.token }}
+          DESCRIPTION_TOKEN: ${{ secrets.description-token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import html
+          import json
+          import os
+          import re
+          import socket
+          import sys
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          START = "<!-- repo-tagline:start -->"
+          END = "<!-- repo-tagline:end -->"
+          MAX_DESCRIPTION_LENGTH = 350
+
+          def extract_tagline(readme):
+              if readme.count(START) != 1 or readme.count(END) != 1:
+                  raise ValueError("README needs exactly one repo-tagline marker pair")
+              if readme.count("repo-tagline:") != 2:
+                  raise ValueError("README contains stray repo-tagline markers")
+              start = readme.index(START)
+              end = readme.index(END)
+              if start >= end:
+                  raise ValueError("Tagline markers are reversed")
+              opening = readme.lstrip()
+              header = re.match(r'<p\s+align="center"\s*>', opening)
+              if not header:
+                  raise ValueError("README must start with a centered paragraph")
+              header_end = readme.find("</p>")
+              if header_end < 0 or end + len(END) > header_end:
+                  raise ValueError("Tagline must be inside the opening header")
+              prefix = readme[:start]
+              if "<img " not in prefix or "```" in prefix or "~~~" in prefix:
+                  raise ValueError("Tagline must follow the logo, outside code fences")
+              block = readme[start + len(START):end].strip()
+              match = re.fullmatch(r"<strong>([^<>]*)</strong>", block)
+              if not match:
+                  raise ValueError("Marker block must contain only one plain-text strong element")
+              tagline = " ".join(html.unescape(match.group(1)).split())
+              if not tagline:
+                  raise ValueError("Tagline is empty")
+              if any(ord(char) < 32 or ord(char) == 127 for char in tagline):
+                  raise ValueError("Tagline contains control characters")
+              if len(tagline) > MAX_DESCRIPTION_LENGTH:
+                  raise ValueError("Tagline exceeds the 350-character contract limit")
+              return tagline
+
+          def api(path, token, method="GET", payload=None):
+              if not token:
+                  raise ValueError("Required GitHub token is missing")
+              url = os.environ["GITHUB_API_URL"].rstrip("/") + path
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              request = urllib.request.Request(url, data=data, method=method, headers={
+                  "Authorization": "Bearer " + token,
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+                  "User-Agent": "readme-tagline-sync",
+              })
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(request, timeout=20) as response:
+                          return json.load(response)
+                  except urllib.error.HTTPError as error:
+                      limited = error.code == 403 and (
+                          error.headers.get("Retry-After") is not None
+                          or error.headers.get("X-RateLimit-Remaining") == "0"
+                      )
+                      if error.code not in (429, 500, 502, 503, 504) and not limited:
+                          raise RuntimeError(f"GitHub API returned HTTP {error.code} for {method} {path}") from None
+                      delay = 2 ** (attempt + 1)
+                      if error.headers.get("Retry-After"):
+                          try:
+                              delay = max(delay, float(error.headers["Retry-After"]))
+                          except ValueError:
+                              raise RuntimeError("GitHub requested a retry at a later time; rerun the workflow") from None
+                      if error.headers.get("X-RateLimit-Remaining") == "0":
+                          delay = max(delay, float(error.headers.get("X-RateLimit-Reset", "0")) - time.time())
+                      if attempt == 2 or delay > 30:
+                          raise RuntimeError(f"GitHub API is temporarily unavailable or rate limited (HTTP {error.code}); rerun later") from None
+                      time.sleep(delay)
+                  except (urllib.error.URLError, TimeoutError, socket.timeout):
+                      if attempt == 2:
+                          raise RuntimeError("GitHub API could not be reached after three attempts") from None
+                      time.sleep(2 ** (attempt + 1))
+
+          def main():
+              repository = os.environ["GITHUB_REPOSITORY"]
+              repository_path = "/repos/" + urllib.parse.quote(repository, safe="/")
+              read_token = os.environ["READ_TOKEN"]
+              validate_only = os.environ["VALIDATE_ONLY"] == "true"
+              event = os.environ["GITHUB_EVENT_NAME"]
+              if event == "pull_request":
+                  validate_only = True
+              if not validate_only and event not in ("push", "workflow_dispatch"):
+                  raise ValueError("Metadata writes require a default-branch push or manual run")
+              metadata = api(repository_path, read_token)
+              default_branch = metadata["default_branch"]
+              if not validate_only and os.environ["GITHUB_REF"] != "refs/heads/" + default_branch:
+                  raise ValueError("Only the default branch can update the repository description")
+              token = read_token if validate_only else os.environ.get("DESCRIPTION_TOKEN", "")
+              if not token:
+                  raise ValueError("Configure README_DESCRIPTION_TOKEN with Contents read and Administration write, and pass it as description-token")
+              readme_path = urllib.parse.quote(os.environ["README_PATH"], safe="/")
+              contents_path = repository_path + "/contents/" + readme_path
+              ref = os.environ["GITHUB_SHA"] if validate_only else default_branch
+              query = "?ref=" + urllib.parse.quote(ref, safe="")
+              for attempt in range(3):
+                  document = api(contents_path + query, token)
+                  if document.get("type") != "file" or document.get("encoding") != "base64":
+                      raise ValueError("README must be a regular UTF-8 file supported by the Contents API")
+                  readme = base64.b64decode(document["content"]).decode("utf-8-sig")
+                  tagline = extract_tagline(readme)
+                  if validate_only:
+                      print("Tagline validation passed; no metadata changes")
+                      return
+                  current = api(repository_path, token)
+                  if current.get("description") == tagline:
+                      print("Repository description already matches the README tagline")
+                      return
+                  latest = api(contents_path + query, token)
+                  if latest["sha"] != document["sha"]:
+                      continue
+                  # Repeating the same description PATCH after a lost response is idempotent.
+                  api(repository_path, token, method="PATCH", payload={"description": tagline})
+                  verified = api(repository_path, token)
+                  if verified.get("description") != tagline:
+                      raise RuntimeError("Description update could not be verified; inspect the current repository description")
+                  print("Repository description now matches the README tagline")
+                  return
+              raise RuntimeError("README changed repeatedly during sync; rerun for its latest version")
+
+          if __name__ == "__main__":
+              try:
+                  main()
+              except Exception as error:
+                  print(f"Tagline sync failed: {error}", file=sys.stderr)
+                  sys.exit(1)
+          PY
