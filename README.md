@@ -1,12 +1,12 @@
-<div align="center">
+<p align="center">
   <img src="logo.png" alt=".github" width="512"/>
+  <br />
+  <!-- repo-tagline:start -->
+  <strong>🛠️ Shared GitHub Actions and repository maintenance tools 🔧</strong>
+  <!-- repo-tagline:end -->
+</p>
 
-  # .github
-
-  Private GitHub Actions building blocks and fleet maintenance tooling for the `tsilva` repositories
-
-  [Workflows](#workflows) · [CLI](#cli-gitguard) · [Usage](#usage)
-</div>
+[Workflows](#workflows) · [CLI](#cli-gitguard) · [Usage](#usage)
 
 ## Features
 
