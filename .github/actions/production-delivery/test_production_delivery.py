@@ -541,6 +541,20 @@ class SharedBoundaryTests(unittest.TestCase):
                 d.infisical_secrets(self.config)
             self.assertEqual(request.call_count, 1)
 
+    def test_reshoot_realtime_keeps_the_sealing_key_private(self):
+        app = self.apps["1317499522"]
+        self.assertEqual(app["repository"], "tsilva/reshoot")
+        self.assertEqual(app["infisicalProjectId"], "05231e99-a5e4-4d81-bbae-ea17a054ae54")
+        self.assertEqual(app["vercelProjectId"], "prj_L1D4dlxsUv8zZORHmxEmDZnE3lCV")
+        self.assertTrue({"NEON_REALTIME_URL", "NEON_REALTIME_SECRET"} <= set(app["secretNames"]))
+        self.assertIn("NEON_REALTIME_URL", d.config_names(app))
+        self.assertNotIn("NEON_REALTIME_SECRET", d.config_names(app))
+        with self.assertRaises(d.DeliveryError):
+            d.config_names(app | {"configNames": app["configNames"] + ["NEON_REALTIME_SECRET"]})
+        for other in self.apps.values():
+            if other["repository"] != "tsilva/reshoot":
+                self.assertFalse({"NEON_REALTIME_URL", "NEON_REALTIME_SECRET"} & set(other["secretNames"]))
+
     def test_mapping_has_eighteen_separate_fixed_sources_and_destinations(self):
         self.assertEqual(len(self.apps), 18)
         self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 18)

@@ -54,6 +54,10 @@ public configuration uses Production Config variables. Require Separate Values
 remains enabled; Preview and Development are never overwritten. The relay's own
 credentials must be in a separate vault inaccessible to the application reader.
 
+Reshoot's allowlist includes its Production `NEON_REALTIME_URL` as public
+configuration and `NEON_REALTIME_SECRET` as a private Secret. These values come
+only from Reshoot's isolated Production vault; no other app's allowlist changes.
+
 ## Verify and maintain
 
 Run `python3 -m unittest discover -s .github/actions/production-delivery -p 'test_*.py'`

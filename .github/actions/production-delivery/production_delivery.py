@@ -262,6 +262,7 @@ def config_names(config):
     names = config.get("configNames")
     allowed = {
         "ASSET_RETENTION_SECONDS",
+        "NEON_REALTIME_URL",
         "OPENROUTER_APP_NAME",
         "OPENROUTER_MODEL",
         "OPENROUTER_SITE_URL",
