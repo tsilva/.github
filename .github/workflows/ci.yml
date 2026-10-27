@@ -9,9 +9,6 @@ on:
       pytest-args:
         type: string
         default: ""
-  pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read

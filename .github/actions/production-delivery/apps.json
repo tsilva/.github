@@ -1,0 +1,405 @@
+{
+  "1176162073": {
+    "repository": "tsilva/aigrounds",
+    "githubRepositoryId": 1176162073,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "392be922-1a8f-4a1f-8e85-0e455e10fbbf",
+    "secretNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "OPENROUTER_API_KEY",
+      "OPENROUTER_APP_NAME",
+      "OPENROUTER_MODEL",
+      "OPENROUTER_SITE_URL",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_Ktcv99ngBNGKzh3hFdM1XbzEl1PS",
+    "vercelProjectName": "aigrounds",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "OPENROUTER_APP_NAME",
+      "OPENROUTER_MODEL",
+      "OPENROUTER_SITE_URL",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1176180208": {
+    "repository": "tsilva/aipit",
+    "githubRepositoryId": 1176180208,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "c18b9241-653d-4426-b9e2-3949352c0d76",
+    "secretNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "NEXT_PUBLIC_SITE_URL",
+      "OPENROUTER_API_KEY",
+      "R2_ACCESS_KEY_ID",
+      "R2_ACCOUNT_ID",
+      "R2_BUCKET_NAME",
+      "R2_OBJECT_PREFIX",
+      "R2_SECRET_ACCESS_KEY",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_SMOKE_TEST_TOKEN"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_IQMwNukbxGXroHZESU9IbDFJbkQN",
+    "vercelProjectName": "aipit",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "NEXT_PUBLIC_SITE_URL",
+      "R2_ACCOUNT_ID",
+      "R2_BUCKET_NAME",
+      "R2_OBJECT_PREFIX",
+      "SENTRY_DSN"
+    ]
+  },
+  "1399606887": {
+    "repository": "tsilva/chatex",
+    "githubRepositoryId": 1399606887,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "b36d2fc6-cc3e-47f6-9264-857b204a97e9",
+    "secretNames": [
+      "OPENAI_API_KEY"
+    ],
+    "destination": "cloudflare-worker",
+    "vercelProjectId": "prj_j3Q68ewElEvfU0a1tKzagjryRwAe",
+    "vercelProjectName": "chatex",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "cloudflareAccountId": "83e1ce4a70ea388693e8525a772ccefa",
+    "workerName": "chatex-rooms",
+    "healthUrl": "https://chatex-rooms.eng-tiago-silva.workers.dev/health"
+  },
+  "751968666": {
+    "repository": "tsilva/curriculum-vitae",
+    "githubRepositoryId": 751968666,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "a9af1319-4c51-4055-86f0-9f537d32b8b7",
+    "secretNames": [
+      "NEXT_PUBLIC_GA_MEASUREMENT_ID",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_BASE_URL",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_r3jpAdDLcGZ4u6N7kvmjwXLZh2kN",
+    "vercelProjectName": "curriculum-vitae",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_GA_MEASUREMENT_ID",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_BASE_URL",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1180907411": {
+    "repository": "tsilva/gadash",
+    "githubRepositoryId": 1180907411,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "9343181c-5ac5-474b-9fc7-21d1da9ac4ae",
+    "secretNames": [
+      "AUTH_SESSION_SECRET",
+      "GITHUB_CLIENT_SECRET",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "PAGESPEED_API_KEY",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_BASE_URL",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_eLMY5DO2PWkmiNMpoCi6p5CRFXWw",
+    "vercelProjectName": "gadash",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_BASE_URL",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1174573273": {
+    "repository": "tsilva/llame",
+    "githubRepositoryId": 1174573273,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "490f971e-8be3-4aec-b1f6-0851ada9661e",
+    "secretNames": [
+      "NEXT_PUBLIC_ENABLE_VERCEL_INSIGHTS",
+      "NEXT_PUBLIC_GA_MEASUREMENT_ID",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_SnsRSVzZt8kjVFQ33AqbwsHKdZPp",
+    "vercelProjectName": "llame",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_ENABLE_VERCEL_INSIGHTS",
+      "NEXT_PUBLIC_GA_MEASUREMENT_ID",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1166859429": {
+    "repository": "tsilva/minariviz",
+    "githubRepositoryId": 1166859429,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "9b565353-dd07-4d6e-b699-532e1360e93c",
+    "secretNames": [
+      "NEXT_PUBLIC_API_URL",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_ENVIRONMENT",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_5DAokXNN12fA1l2deCCQGcLZCCr8",
+    "vercelProjectName": "minariviz",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_API_URL",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_DSN",
+      "SENTRY_ENVIRONMENT",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1253290016": {
+    "repository": "tsilva/modelarchviz",
+    "githubRepositoryId": 1253290016,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "98dbad8b-2628-4a3d-8323-1e24e6f4fcc7",
+    "secretNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "OPENROUTER_API_KEY",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_lp2S0Pn0viZIiiGplSG8l9RzJtcx",
+    "vercelProjectName": "modelarchviz",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1238743750": {
+    "repository": "tsilva/modelviz",
+    "githubRepositoryId": 1238743750,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "362c6be8-ba92-4bdb-92ab-4305314517eb",
+    "secretNames": [
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT",
+      "VITE_SENTRY_DSN"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_Sy4GGWi85T3HvrFY4f2I6NyQ1Bia",
+    "vercelProjectName": "modelviz",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "SENTRY_ORG",
+      "SENTRY_PROJECT",
+      "VITE_SENTRY_DSN"
+    ]
+  },
+  "1185444888": {
+    "repository": "tsilva/nesvibes",
+    "githubRepositoryId": 1185444888,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "58e1e36c-c960-4278-a5f9-0ca267e6c3a9",
+    "secretNames": [
+      "NEXT_PUBLIC_GA_MEASUREMENT_ID",
+      "PUBLIC_GOOGLE_ANALYTICS_ID",
+      "PUBLIC_SENTRY_DSN",
+      "SENTRY_AUTH_TOKEN"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_Xobvbls2uatrxEW22TwAqXYr2rnF",
+    "vercelProjectName": "nesvibes",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_GA_MEASUREMENT_ID",
+      "PUBLIC_GOOGLE_ANALYTICS_ID",
+      "PUBLIC_SENTRY_DSN"
+    ]
+  },
+  "1334242277": {
+    "repository": "tsilva/paperclean-web",
+    "githubRepositoryId": 1334242277,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "cdcb608b-f3c1-442b-82c6-c971af61bfad",
+    "secretNames": [
+      "ASSET_RETENTION_SECONDS",
+      "CLERK_SECRET_KEY",
+      "CLERK_WEBHOOK_SIGNING_SECRET",
+      "DATABASE_URL",
+      "NEXT_PUBLIC_APP_URL",
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_stGKNmevpjNfWlCMH8vS1Y3prnFM",
+    "vercelProjectName": "paperclean-web",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "ASSET_RETENTION_SECONDS",
+      "NEXT_PUBLIC_APP_URL",
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
+    ]
+  },
+  "1317499522": {
+    "repository": "tsilva/reshoot",
+    "githubRepositoryId": 1317499522,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "05231e99-a5e4-4d81-bbae-ea17a054ae54",
+    "secretNames": [
+      "CRON_SECRET",
+      "DATABASE_URL",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "OPENROUTER_API_KEY",
+      "R2_ACCESS_KEY_ID",
+      "R2_ACCOUNT_ID",
+      "R2_BUCKET_NAME",
+      "R2_ENDPOINT",
+      "R2_SECRET_ACCESS_KEY",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_L1D4dlxsUv8zZORHmxEmDZnE3lCV",
+    "vercelProjectName": "reshoot",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "R2_ACCOUNT_ID",
+      "R2_BUCKET_NAME",
+      "R2_ENDPOINT",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1194484994": {
+    "repository": "tsilva/scummweb",
+    "githubRepositoryId": 1194484994,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "4a62d836-fb3e-4b90-ad02-403cef183dc2",
+    "secretNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT",
+      "SENTRY_SMOKE_TEST_TOKEN"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_I5MH0YVxKnamBHxfmq46QAVANJkt",
+    "vercelProjectName": "scummweb",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  },
+  "1420482088": {
+    "repository": "tsilva/shelfer",
+    "githubRepositoryId": 1420482088,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "ea2c33a6-2de2-45c1-963b-07bd8c2a0eec",
+    "secretNames": [
+      "OPENROUTER_API_KEY"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_FS5zwkBaMSR2snV3L4eG2v3QqDLj",
+    "vercelProjectName": "shelfer",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": []
+  },
+  "1186449069": {
+    "repository": "tsilva/sigmaevolve",
+    "githubRepositoryId": 1186449069,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "2fbfdb85-b6be-4951-9580-7f6582c825af",
+    "secretNames": [
+      "DATABASE_URL",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT",
+      "SENTRY_SMOKE_TOKEN",
+      "SENTRY_TRACES_SAMPLE_RATE"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_Kn7VMXsapAZYHNgxkmRhb8pQhjOI",
+    "vercelProjectName": "sigmaevolve",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT",
+      "SENTRY_TRACES_SAMPLE_RATE"
+    ]
+  },
+  "1252573192": {
+    "repository": "tsilva/waxon",
+    "githubRepositoryId": 1252573192,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "ad93d013-8087-4bcb-bf12-63ef33e13282",
+    "secretNames": [
+      "CLERK_SECRET_KEY",
+      "DATABASE_URL",
+      "DATABASE_URL_UNPOOLED",
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "OPENROUTER_API_KEY",
+      "SENTRY_AUTH_TOKEN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_wfpyQUxJK3cZKK3UbRmqnCAKfGrs",
+    "vercelProjectName": "waxon",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "configNames": [
+      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_SENTRY_DSN",
+      "SENTRY_DSN",
+      "SENTRY_ORG",
+      "SENTRY_PROJECT"
+    ]
+  }
+}

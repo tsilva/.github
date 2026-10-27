@@ -2,220 +2,113 @@
   <img src="logo.png" alt=".github" width="512"/>
   <br />
   <!-- repo-tagline:start -->
-  <strong>🛠️ Shared GitHub Actions and repository maintenance tools 🔧</strong>
+  <strong>🛠️ Shared reusable GitHub Actions workflows 🔧</strong>
   <!-- repo-tagline:end -->
 </p>
 
-[Workflows](#workflows) · [CLI](#cli-gitguard) · [Usage](#usage)
+## Reusable workflows
 
-## Features
+| Workflow | Purpose |
+|---|---|
+| `ci.yml` | Callable Python CI interface for repositories with a uv project |
+| `test.yml` | Install with uv and run pytest |
+| `release.yml` | Compose testing with a GitHub release or PyPI publication |
+| `publish-pypi.yml` | Build, release, and publish through PyPI trusted publishing |
+| `create-release.yml` | Create a GitHub release without publishing a Python package |
+| `sync-description.yml` | Validate the marked README tagline and sync the repository description |
+| `production-delivery.yml` | Sync the approved caller’s Production secrets and deploy its exact CI-passing commit |
 
-[![CI](https://github.com/tsilva/.github/actions/workflows/ci.yml/badge.svg)](https://github.com/tsilva/.github/actions/workflows/ci.yml)
-
-- Modular internal workflows — same-repository calls use commit-bound relative references
-- PyPI publishing — build, release, and publish via trusted publishing
-- Auto-tagging — version extracted from `pyproject.toml`, skips existing tags
-- Testing — pytest via a reusable workflow within this repository
-- Repo compliance — audit and enforce repository standards via Python CLI
-- Supply-chain controls — generated workflows use full-SHA action pins and least-privilege jobs
-- Repo templates — pre-compliant starting points for new projects
-- Repo bootstrapping — automate new repo setup from template to full compliance in one command
-
-## Workflows
-
-| Workflow | Purpose | Key Details |
-|----------|---------|-------------|
-| `release.yml` | Repository release flow | Calls local test and publish workflows |
-| `publish-pypi.yml` | Build, tag, release, publish | Uses `uv build` + trusted publishing |
-| `create-release.yml` | Tag + GitHub release (no PyPI) | For non-Python repos |
-| `test.yml` | Validate Python | Frozen sync, lock/audit, focused Ruff, pytest, and package build |
-| `ci.yml` | PR-time checks | Wraps test workflow |
-| `dependency-review.yml` | Review dependency changes | Portable lock, registry-source, and frozen audit gate |
-
-### `release.yml`
-
-The release entry point for this repository. Other repositories receive a self-contained, SHA-pinned release workflow from `gitguard` rather than calling this private repository.
-
-**Flow:**
-1. Runs tests
-2. Builds once in a read-only job and stores the artifacts
-3. Creates the GitHub release and publishes to PyPI in separate least-privilege jobs
-
-## CLI (`gitguard`)
-
-A Python CLI that replaces the legacy bash scripts. Each compliance rule is a self-contained class with `check()` and `fix()` methods, auto-discovered at runtime.
-
-### Installation
-
-```bash
-uv pip install -e .           # development
-uv tool install gitguard  # global CLI
-```
-
-### Commands
-
-```bash
-# Default — single-pass check + fix cycle
-gitguard ~/repos/tsilva
-gitguard ~/repos/tsilva --filter myrepo   # only repos matching pattern
-gitguard ~/repos/tsilva --rule README_EXISTS
-
-# Dry run — preview what would be fixed without modifying files
-gitguard ~/repos/tsilva --dry-run
-gitguard ~/repos/tsilva --dry-run --json  # JSON output for CI
-
-# Commit — AI-assisted commit & push for dirty repos
-gitguard commit ~/repos/tsilva
-gitguard commit ~/repos/tsilva --filter myrepo
-gitguard commit ~/repos/tsilva --dry-run   # show dirty repos only
-
-# Report — generate reports
-gitguard report taglines ~/repos/tsilva
-gitguard report tracked-ignored ~/repos/tsilva
-
-# Rename — rename a repo on GitHub + local + remote + file references
-gitguard rename old-name new-name ~/repos/tsilva
-gitguard rename old-name new-name ~/repos/tsilva --dry-run
-```
-
-### Adding a New Rule
-
-Create one Python file in `src/gitguard/rules/`:
-
-```python
-from gitguard.rules import Category, CheckResult, Rule, Status
-
-class MyRule(Rule):
-    id = "MY_RULE"
-    name = "Description of the rule"
-    category = Category.REPO_STRUCTURE
-
-    def check(self, repo):
-        if (repo.path / "expected_file").is_file():
-            return CheckResult(Status.PASS)
-        return CheckResult(Status.FAIL, "expected_file not found")
-```
-
-The rule is auto-discovered — no registration needed.
-
-### Compliance Rules
-
-**Repository Structure**
-
-| ID | Rule |
-|----|------|
-| `README_EXISTS` | README.md must exist |
-| `README_CURRENT` | README must have no placeholders, be >100 chars, and include install/usage sections |
-| `README_LICENSE` | README must reference the license |
-| `README_CI_BADGE` | README must have a CI badge (repos with workflows) |
-| `README_LOGO` | README must reference the project logo |
-| `LOGO_EXISTS` | A logo file must exist in a standard location |
-| `LICENSE_EXISTS` | LICENSE file must exist |
-| `GITIGNORE_EXISTS` | .gitignore must exist |
-| `GITIGNORE_COMPLETE` | .gitignore must include essential patterns (.env, .DS_Store, node_modules/, __pycache__/, *.pyc, .venv/) |
-| `TRACKED_IGNORED` | No tracked files should match .gitignore patterns |
-| `REPO_DESCRIPTION` | GitHub repo description must match README tagline |
-
-**Python Projects**
-
-| ID | Rule |
-|----|------|
-| `PYTHON_PYPROJECT` | Python projects must use pyproject.toml |
-| `PYTHON_MIN_VERSION` | pyproject.toml must specify requires-python |
-
-**CI/CD**
-
-| ID | Rule |
-|----|------|
-| `CI_WORKFLOW` | Python repos must have a CI workflow |
-| `RELEASE_WORKFLOW` | Versioned projects must have a release workflow |
-
-**Claude Code Configuration**
-
-| ID | Rule |
-|----|------|
-| `CLAUDE_MD_EXISTS` | CLAUDE.md must exist |
-| `CLAUDE_SANDBOX` | Claude Code sandbox must be enabled |
-| `SETTINGS_DANGEROUS` | No dangerous permission patterns in Claude settings |
-| `SETTINGS_CLEAN` | No redundant permissions or unmigrated WebFetch domains |
-
-**Git Hygiene**
-
-| ID | Rule |
-|----|------|
-| `DEFAULT_BRANCH` | Default branch must be `main` |
-| `PENDING_COMMITS` | No uncommitted changes or unpushed commits |
-| `STALE_BRANCHES` | No merged or inactive (>90 days) branches |
-
-## Repository Templates
-
-Bootstrap new repos that are pre-compliant with org standards:
-
-```bash
-# Python CLI tool (published to PyPI)
-gh repo create tsilva/my-new-tool --template tsilva/template-python-cli --clone
-
-# Python sandbox/learning repo
-gh repo create tsilva/sandbox-whatever --template tsilva/template-python-sandbox --clone
-
-# Non-Python project
-gh repo create tsilva/my-app --template tsilva/template-generic --clone
-
-# React Native (Expo) app
-gh repo create tsilva/my-app --template tsilva/template-react-native --clone
-```
-
-| Template | Use case | Includes |
-|----------|----------|----------|
-| `template-python-cli` | CLI tools published to PyPI | src layout, hatchling build, release workflow, tests |
-| `template-python-sandbox` | Learning/experimentation | Minimal pyproject.toml, no workflows |
-| `template-generic` | Non-Python repos | No Python files |
-| `template-react-native` | React Native (Expo) apps | Expo Router, EAS Build workflow, TypeScript |
-
-All templates include: LICENSE (MIT), CLAUDE.md, .gitignore, Claude sandbox config.
-
-### Automated Bootstrapping
-
-Use the `bootstrap-repo` skill to go from zero to fully compliant in a single invocation — creates the GitHub repo from a template, clones it, replaces placeholders, generates a logo and README, runs gitguard, and commits:
-
-```
-/bootstrap-repo my-new-tool python-cli "A CLI tool that does X"
-/bootstrap-repo sandbox-ml python-sandbox "Experimenting with ML algorithms"
-/bootstrap-repo my-app generic "A web application"
-/bootstrap-repo my-mobile-app react-native "A habit tracking app"
-```
+The composite `check-version` action reads a static or Hatch-managed project version and reports whether its Git tag already exists.
 
 ## Usage
 
-### Install or repair a Python release workflow
-
-```bash
-gitguard /path/to/repos --rule CLI_RELEASE_WORKFLOW
+```yaml
+jobs:
+  release:
+    uses: tsilva/.github/.github/workflows/release.yml@main
+    secrets: inherit
 ```
 
-The generated `.github/workflows/release.yml` is self-contained, pins every remote action to a full commit SHA, and separates build, GitHub release, and PyPI publishing permissions.
-
-### Internal reusable workflows
+For a non-Python release:
 
 ```yaml
 jobs:
-  test:
-    uses: ./.github/workflows/test.yml
+  release:
+    uses: tsilva/.github/.github/workflows/release.yml@main
+    with:
+      publish_to_pypi: false
+    secrets: inherit
 ```
 
-Relative calls execute the workflow from the same commit. Cross-repository use is intentionally disabled while this repository remains private.
+Repository-fleet auditing is implemented in the separate private `private-maintain` project. This repository intentionally contains no audit engine, remediation CLI, bulk-administration scripts, or project-specific maintenance skills.
 
-## Requirements
+## Trusted production delivery
 
-Generated release workflows need:
-- `pyproject.toml` with `version` field (for release workflows)
-- `pypi` environment configured (for PyPI publishing with trusted publishing)
+Approved app repositories call `production-delivery.yml` pinned to a reviewed full
+commit SHA. There are no vault, destination or shell-command inputs. Immutable
+GitHub repository IDs select the fixed allowlist in
+[apps.json](.github/actions/production-delivery/apps.json). The privileged job
+checks out only the shared implementation, waits for the caller's exact latest
+main commit to pass `ci.yml`, fetches secrets directly from Infisical via OIDC,
+syncs only Production variables, and verifies an exact-commit READY deployment.
 
-CLI requires:
-- Python 3.11+ — zero external dependencies (stdlib only)
-- [GitHub CLI](https://cli.github.com/) (`gh`) — for repo description sync
-- git — for repository operations
+Infisical requires the approved caller IDs, owner ID, main branch, Production
+environment and **this reusable workflow at its pinned SHA**. App jobs cannot
+obtain the shared reader directly. The reader still has access to all assigned
+app vaults inside the trusted job; see the full
+[trust contract and update procedure](.github/actions/production-delivery/README.md).
+Do not inherit all caller secrets: pass only `VERCEL_TOKEN` and, for Chatex,
+`CLOUDFLARE_API_TOKEN`. Keep app code and dependency installation outside the
+trusted job. Chatex deploys its Worker code in a separate job without OIDC access.
+
+A standalone Cloudflare relay handles signed Infisical notifications and starts
+the fixed app entry workflow. It does not receive application secret values or
+provide the Infisical reader. Relay credentials live in an isolated vault and
+Cloudflare account, outside the application reader's access.
+
+## README tagline syncing
+
+The README is authoritative. Place exactly one marker pair around its visible tagline inside the opening `<p align="center">` block, after the logo:
+
+Use HTML comment markers named `repo-tagline:start` and `repo-tagline:end`,
+with the visible tagline between them. Keep the literal marker pair only once
+in the document, including examples.
+
+Use plain text inside `<strong>`, escaping characters such as `&` as `&amp;`. Extraction preserves emojis, decodes HTML entities, normalizes whitespace, and rejects empty, malformed, duplicate, or over-350-character taglines without updating metadata.
+
+Add a caller such as `.github/workflows/sync-description.yml`, adjusting `main` to the repository's actual default branch:
+
+```yaml
+name: Sync README tagline
+on:
+  push:
+    branches: [main]
+    paths: [README.md, .github/workflows/sync-description.yml]
+  pull_request:
+    branches: [main]
+    paths: [README.md, .github/workflows/sync-description.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    uses: tsilva/.github/.github/workflows/sync-description.yml@main
+    with:
+      validate-only: true
+  sync:
+    if: github.event_name != 'pull_request'
+    uses: tsilva/.github/.github/workflows/sync-description.yml@main
+    secrets:
+      description-token: ${{ secrets.README_DESCRIPTION_TOKEN }}
+```
+
+The shared interface accepts `readme-path` (default `README.md`), `validate-only` (default `false`), and the optional `description-token` secret. Sync runs require that secret; validation runs do not. Store a fine-grained PAT or GitHub App token with Contents read and Administration write for the caller repository as `README_DESCRIPTION_TOKEN`. The default Actions token cannot update repository descriptions.
+
+Public repositories can call this workflow only when this shared repository is public. Private callers can also call this public repository when their Actions policy allows it. Verify that the workflow is published and accessible before installing callers. Examples use the existing `@main` convention; callers can pin a verified shared-workflow commit SHA instead.
+
+Pull requests validate their proposed README without metadata writes or an administration token. Pushes and manual runs can update descriptions only from the default branch, using its latest README. Missing credentials, malformed taglines, and API failures fail the run visibly. Unchanged descriptions are successful no-ops. Require the validation check in branch rules if it must block merges.
 
 ## License
 
-MIT
+[MIT License](LICENSE).
