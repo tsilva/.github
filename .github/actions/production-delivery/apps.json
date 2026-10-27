@@ -401,5 +401,39 @@
       "SENTRY_ORG",
       "SENTRY_PROJECT"
     ]
+  },
+  "1325113680": {
+    "repository": "tsilva/biginjapan",
+    "githubRepositoryId": 1325113680,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "bccfcd77-bd81-4911-a049-ff348f04396f",
+    "secretNames": [
+      "VITE_GOOGLE_MAPS_API_KEY",
+      "VITE_GOOGLE_MAPS_MAP_ID"
+    ],
+    "configNames": [
+      "VITE_GOOGLE_MAPS_API_KEY",
+      "VITE_GOOGLE_MAPS_MAP_ID"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_Wq5fe5ZNjpSkcrqjZ0fCRNHX20HF",
+    "vercelProjectName": "biginjapan",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0"
+  },
+  "1411588422": {
+    "repository": "tsilva/tubescribe",
+    "githubRepositoryId": 1411588422,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "1f9874ad-12bc-44a6-b0aa-59027a494b70",
+    "secretNames": [
+      "TUBESCRIBE_PUBLIC_ORIGIN"
+    ],
+    "configNames": [
+      "TUBESCRIBE_PUBLIC_ORIGIN"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_2O9aw5ukOM9mfDR1wSRM90sewBih",
+    "vercelProjectName": "tubescribe",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0"
   }
 }

@@ -21,6 +21,7 @@ class DeliveryTests(unittest.TestCase):
         self.config = {
             "repository": "tsilva/example",
             "secretNames": ["SENTRY_AUTH_TOKEN"],
+            "configNames": [],
             "infisicalProjectId": "vault",
             "identityId": "reader",
             "vercelProjectId": "prj_example",
@@ -119,6 +120,52 @@ class DeliveryTests(unittest.TestCase):
             with self.assertRaises(d.DeliveryError):
                 d.sync_worker(self.config, "fake-secret")
             self.assertEqual([call.args[1] for call in request.call_args_list], ["GET"])
+
+    def test_ready_build_without_domain_assignment_is_not_live(self):
+        for assigned in [None, False, 0, "false", "true"]:
+            with self.subTest(assigned=assigned):
+                self.assertFalse(d.production_aliases_assigned(
+                    {"readyState": "READY", "aliasAssigned": assigned}
+                ))
+        for assigned in [True, 1792788551754]:
+            with self.subTest(assigned=assigned):
+                self.assertTrue(d.production_aliases_assigned(
+                    {"readyState": "READY", "aliasAssigned": assigned}
+                ))
+
+    def test_domain_assignment_error_holds_delivery(self):
+        with self.assertRaises(d.DeliveryError):
+            d.production_aliases_assigned({
+                "readyState": "READY", "aliasAssigned": True,
+                "aliasError": {"code": "check_failed", "message": "private provider detail"},
+            })
+
+    def test_deploy_waits_for_production_assignment_after_ready_build(self):
+        import contextlib
+        import io
+
+        ready = {
+            "projectId": "prj_example", "target": "production",
+            "readyState": "READY", "meta": {"githubCommitSha": self.sha},
+        }
+        output = io.StringIO()
+        with (
+            patch.dict(os.environ, {"GITHUB_RUN_ID": "1"}),
+            patch.object(d, "wait_for_ci"),
+            patch.object(d, "context") as context,
+            patch.object(d, "verify_vercel"),
+            patch.object(d, "vercel_request", side_effect=[
+                {"id": "dpl_example"}, ready | {"aliasAssigned": False},
+                ready | {"aliasAssigned": True},
+            ]) as request,
+            patch.object(d.time, "sleep") as sleep,
+            contextlib.redirect_stdout(output),
+        ):
+            d.deploy_vercel(self.config | {"vercelProjectName": "example"}, self.sha)
+        sleep.assert_called_once_with(15)
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(context.call_count, 2)
+        self.assertEqual(output.getvalue().count("Production READY:"), 1)
 
     def test_failed_ci_prevents_deployment(self):
         with (
@@ -494,10 +541,10 @@ class SharedBoundaryTests(unittest.TestCase):
                 d.infisical_secrets(self.config)
             self.assertEqual(request.call_count, 1)
 
-    def test_mapping_has_sixteen_separate_fixed_sources_and_destinations(self):
-        self.assertEqual(len(self.apps), 16)
-        self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 16)
-        self.assertEqual(len({v["vercelProjectId"] for v in self.apps.values()}), 16)
+    def test_mapping_has_eighteen_separate_fixed_sources_and_destinations(self):
+        self.assertEqual(len(self.apps), 18)
+        self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 18)
+        self.assertEqual(len({v["vercelProjectId"] for v in self.apps.values()}), 18)
         self.assertFalse({"GITHUB_PRODUCTION_DISPATCH_TOKEN", "INFISICAL_WEBHOOK_SIGNING_KEYS"} & set(self.config["secretNames"]))
         for key, app in self.apps.items():
             self.assertEqual(key, str(app["githubRepositoryId"]))

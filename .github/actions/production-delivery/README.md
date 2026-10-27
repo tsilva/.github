@@ -31,7 +31,7 @@ installation to the trusted job.
 The reader must require all of these signed OIDC claims server-side:
 
 - `repository_owner_id`: `26742`
-- `repository_id`: the 16 reviewed IDs in `apps.json`
+- `repository_id`: the 18 reviewed IDs in `apps.json`
 - `ref`: `refs/heads/main`
 - `workflow_ref`: the approved caller production-delivery paths on main
 - `job_workflow_ref`: the shared workflow path at its reviewed full commit SHA
@@ -43,7 +43,7 @@ Token lifetime is at most 900 seconds. Local checks additionally verify caller
 name/ID, environment, exact SHA and event claims before login. The local JWT
 parser does not replace Infisical's signature verification or trust policy.
 
-The machine identity remains a shared reader across the 16 application vaults.
+The machine identity remains a shared reader across the 18 application vaults.
 Isolation is enforced by the trusted job and server-side reusable-workflow pin,
 not by pretending this is 16 separate Infisical identities. App jobs do not receive
 its access token. Maintainers of this shared code, the Infisical administrator,
