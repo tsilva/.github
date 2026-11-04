@@ -555,6 +555,24 @@ class SharedBoundaryTests(unittest.TestCase):
             if other["repository"] != "tsilva/reshoot":
                 self.assertFalse({"NEON_REALTIME_URL", "NEON_REALTIME_SECRET"} & set(other["secretNames"]))
 
+    def test_reshoot_clerk_secret_stays_private_and_payment_mode_is_configuration(self):
+        app = self.apps["1317499522"]
+        self.assertTrue({"CLERK_SECRET_KEY", "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+                         "RESHOOT_PAYMENTS_MODE"} <= set(app["secretNames"]))
+        public = d.config_names(app)
+        self.assertTrue({"NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "RESHOOT_PAYMENTS_MODE"} <= public)
+        self.assertNotIn("CLERK_SECRET_KEY", public)
+        with self.assertRaises(d.DeliveryError):
+            d.config_names(app | {"configNames": app["configNames"] + ["CLERK_SECRET_KEY"]})
+
+    def test_reshoot_payment_mode_is_public_and_scoped_to_its_existing_vault(self):
+        app = self.apps["1317499522"]
+        self.assertIn("RESHOOT_PAYMENTS_MODE", app["secretNames"])
+        self.assertIn("RESHOOT_PAYMENTS_MODE", d.config_names(app))
+        for other in self.apps.values():
+            if other["repository"] != "tsilva/reshoot":
+                self.assertNotIn("RESHOOT_PAYMENTS_MODE", other["secretNames"])
+
     def test_mapping_has_eighteen_separate_fixed_sources_and_destinations(self):
         self.assertEqual(len(self.apps), 18)
         self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 18)

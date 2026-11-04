@@ -270,6 +270,7 @@ def config_names(config):
         "R2_BUCKET_NAME",
         "R2_ENDPOINT",
         "R2_OBJECT_PREFIX",
+        "RESHOOT_PAYMENTS_MODE",
         "SENTRY_BASE_URL",
         "SENTRY_DSN",
         "SENTRY_ENVIRONMENT",

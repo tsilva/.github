@@ -57,6 +57,12 @@ credentials must be in a separate vault inaccessible to the application reader.
 Reshoot's allowlist includes its Production `NEON_REALTIME_URL` as public
 configuration and `NEON_REALTIME_SECRET` as a private Secret. These values come
 only from Reshoot's isolated Production vault; no other app's allowlist changes.
+Its `RESHOOT_PAYMENTS_MODE` is also public configuration from that vault, allowing
+the application to opt into simulated top-ups without enabling real charges.
+
+Reshoot also reads `CLERK_SECRET_KEY` only as a private Secret. Its
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `RESHOOT_PAYMENTS_MODE` are public
+configuration. Simulated payment mode does not enable real charges.
 
 ## Verify and maintain
 
