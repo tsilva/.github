@@ -555,15 +555,11 @@ class SharedBoundaryTests(unittest.TestCase):
             if other["repository"] != "tsilva/reshoot":
                 self.assertFalse({"NEON_REALTIME_URL", "NEON_REALTIME_SECRET"} & set(other["secretNames"]))
 
-    def test_reshoot_clerk_secret_stays_private_and_payment_mode_is_configuration(self):
+    def test_reshoot_native_clerk_keys_are_excluded_from_secret_sync(self):
         app = self.apps["1317499522"]
-        self.assertTrue({"CLERK_SECRET_KEY", "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
-                         "RESHOOT_PAYMENTS_MODE"} <= set(app["secretNames"]))
-        public = d.config_names(app)
-        self.assertTrue({"NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "RESHOOT_PAYMENTS_MODE"} <= public)
-        self.assertNotIn("CLERK_SECRET_KEY", public)
-        with self.assertRaises(d.DeliveryError):
-            d.config_names(app | {"configNames": app["configNames"] + ["CLERK_SECRET_KEY"]})
+        for key in ("CLERK_SECRET_KEY", "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"):
+            self.assertNotIn(key, app["secretNames"])
+            self.assertNotIn(key, d.config_names(app))
 
     def test_reshoot_payment_mode_is_public_and_scoped_to_its_existing_vault(self):
         app = self.apps["1317499522"]

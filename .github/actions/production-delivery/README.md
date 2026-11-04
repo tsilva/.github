@@ -60,9 +60,10 @@ only from Reshoot's isolated Production vault; no other app's allowlist changes.
 Its `RESHOOT_PAYMENTS_MODE` is also public configuration from that vault, allowing
 the application to opt into simulated top-ups without enabling real charges.
 
-Reshoot also reads `CLERK_SECRET_KEY` only as a private Secret. Its
-`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `RESHOOT_PAYMENTS_MODE` are public
-configuration. Simulated payment mode does not enable real charges.
+Reshoot's native Clerk/Vercel integration owns `CLERK_SECRET_KEY` and
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. They are an explicitly approved exception to
+the Infisical source policy and are excluded from this sync. The integration
+supplies distinct Production and Preview keys; delivery must not overwrite them.
 
 ## Verify and maintain
 
