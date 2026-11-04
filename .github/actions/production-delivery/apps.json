@@ -101,34 +101,6 @@
       "SENTRY_PROJECT"
     ]
   },
-  "1180907411": {
-    "repository": "tsilva/gadash",
-    "githubRepositoryId": 1180907411,
-    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
-    "infisicalProjectId": "9343181c-5ac5-474b-9fc7-21d1da9ac4ae",
-    "secretNames": [
-      "AUTH_SESSION_SECRET",
-      "GITHUB_CLIENT_SECRET",
-      "NEXT_PUBLIC_SENTRY_DSN",
-      "PAGESPEED_API_KEY",
-      "SENTRY_AUTH_TOKEN",
-      "SENTRY_BASE_URL",
-      "SENTRY_DSN",
-      "SENTRY_ORG",
-      "SENTRY_PROJECT"
-    ],
-    "destination": "vercel",
-    "vercelProjectId": "prj_eLMY5DO2PWkmiNMpoCi6p5CRFXWw",
-    "vercelProjectName": "gadash",
-    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
-    "configNames": [
-      "NEXT_PUBLIC_SENTRY_DSN",
-      "SENTRY_BASE_URL",
-      "SENTRY_DSN",
-      "SENTRY_ORG",
-      "SENTRY_PROJECT"
-    ]
-  },
   "1174573273": {
     "repository": "tsilva/llame",
     "githubRepositoryId": 1174573273,

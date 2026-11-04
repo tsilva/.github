@@ -569,10 +569,10 @@ class SharedBoundaryTests(unittest.TestCase):
             if other["repository"] != "tsilva/reshoot":
                 self.assertNotIn("RESHOOT_PAYMENTS_MODE", other["secretNames"])
 
-    def test_mapping_has_eighteen_separate_fixed_sources_and_destinations(self):
-        self.assertEqual(len(self.apps), 18)
-        self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 18)
-        self.assertEqual(len({v["vercelProjectId"] for v in self.apps.values()}), 18)
+    def test_mapping_has_seventeen_separate_fixed_sources_and_destinations(self):
+        self.assertEqual(len(self.apps), 17)
+        self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 17)
+        self.assertEqual(len({v["vercelProjectId"] for v in self.apps.values()}), 17)
         self.assertFalse({"GITHUB_PRODUCTION_DISPATCH_TOKEN", "INFISICAL_WEBHOOK_SIGNING_KEYS"} & set(self.config["secretNames"]))
         for key, app in self.apps.items():
             self.assertEqual(key, str(app["githubRepositoryId"]))
