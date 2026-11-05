@@ -569,6 +569,25 @@ class SharedBoundaryTests(unittest.TestCase):
             if other["repository"] != "tsilva/reshoot":
                 self.assertNotIn("RESHOOT_PAYMENTS_MODE", other["secretNames"])
 
+    def test_reshoot_stripe_credentials_stay_private_and_object_ids_are_config(self):
+        app = self.apps["1317499522"]
+        private = {"STRIPE_TEST_SECRET_KEY", "STRIPE_TEST_WEBHOOK_SECRET"}
+        public = {
+            "STRIPE_TEST_STARTER_MONTHLY_PRICE_ID",
+            "STRIPE_TEST_STUDIO_MONTHLY_PRICE_ID",
+            "STRIPE_TEST_PRO_MONTHLY_PRICE_ID",
+            "STRIPE_TEST_PORTAL_CONFIGURATION_ID",
+        }
+        self.assertTrue(private | public <= set(app["secretNames"]))
+        self.assertTrue(public <= d.config_names(app))
+        self.assertFalse(private & d.config_names(app))
+        for key in private:
+            with self.assertRaises(d.DeliveryError):
+                d.config_names(app | {"configNames": app["configNames"] + [key]})
+        for other in self.apps.values():
+            if other["repository"] != "tsilva/reshoot":
+                self.assertFalse((private | public) & set(other["secretNames"]))
+
     def test_mapping_has_seventeen_separate_fixed_sources_and_destinations(self):
         self.assertEqual(len(self.apps), 17)
         self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 17)

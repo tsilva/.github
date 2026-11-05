@@ -58,8 +58,10 @@ credentials must be in a separate vault inaccessible to the application reader.
 Reshoot's allowlist includes its Production `NEON_REALTIME_URL` as public
 configuration and `NEON_REALTIME_SECRET` as a private Secret. These values come
 only from Reshoot's isolated Production vault; no other app's allowlist changes.
-Its `RESHOOT_PAYMENTS_MODE` is also public configuration from that vault, allowing
-the application to opt into simulated top-ups without enabling real charges.
+Its `RESHOOT_PAYMENTS_MODE` and four `STRIPE_TEST_*` monthly Price/portal object
+IDs are public configuration from that vault. `STRIPE_TEST_SECRET_KEY` and
+`STRIPE_TEST_WEBHOOK_SECRET` remain private Production Secrets. These settings
+support sandbox subscriptions only; live billing is disabled by the application.
 
 Reshoot's native Clerk/Vercel integration owns `CLERK_SECRET_KEY` and
 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. They are an explicitly approved exception to
