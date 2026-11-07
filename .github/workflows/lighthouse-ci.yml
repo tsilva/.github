@@ -7,6 +7,10 @@ on:
         description: Public HTTPS page to audit
         required: true
         type: string
+      sample_timings:
+        description: Log compact performance timings for every sample
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -70,6 +74,7 @@ jobs:
           LIGHTHOUSE_URL: ${{ inputs.url }}
           LIGHTHOUSE_LINKS: ${{ steps.lighthouse.outputs.links }}
           LIGHTHOUSE_MANIFEST: ${{ steps.lighthouse.outputs.manifest }}
+          LIGHTHOUSE_SAMPLE_TIMINGS: ${{ inputs.sample_timings }}
         run: |
           python3 - <<'PY'
           import json
@@ -93,4 +98,36 @@ jobs:
               if isinstance(score, (int, float)):
                   summary.append(f"| {name.replace('-', ' ').capitalize()} | {round(score * 100)} |")
           Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(summary) + "\n")
+
+          if os.environ["LIGHTHOUSE_SAMPLE_TIMINGS"] == "true":
+              reports_dir = (Path(os.environ["GITHUB_WORKSPACE"]) / ".lighthouseci").resolve()
+              metric_names = (
+                  "timeToFirstByte", "firstContentfulPaint", "largestContentfulPaint",
+                  "lcpLoadStart", "lcpLoadEnd", "speedIndex", "totalBlockingTime",
+                  "cumulativeLayoutShift", "observedLargestContentfulPaint", "observedSpeedIndex",
+              )
+              for number, run in enumerate(runs, 1):
+                  report_path = Path(run["jsonPath"]).resolve()
+                  if report_path.parent != reports_dir or not report_path.name.endswith(".report.json"):
+                      raise SystemExit("Unexpected Lighthouse report path.")
+                  report = json.loads(report_path.read_text())
+                  audits = report["audits"]
+                  metrics = audits["metrics"]["details"]["items"][0]
+                  requests = audits["network-requests"]["details"]["items"]
+                  document = next((request for request in requests if request.get("resourceType") == "Document"), {})
+                  lcp_audit = audits.get("prioritize-lcp-image", {}).get("details") or {}
+                  initiators = lcp_audit.get("debugData", {}).get("initiatorPath", [])
+                  lcp_url = initiators[0]["url"] if initiators else None
+                  lcp_request = next((request for request in requests if request["url"] == lcp_url), {})
+                  timing = {name: metrics[name] for name in metric_names if name in metrics}
+                  timing.update({
+                      "sample": number,
+                      "performance": run["summary"]["performance"],
+                      "benchmarkIndex": report["environment"].get("benchmarkIndex"),
+                      "documentProtocol": document.get("protocol"),
+                      "documentEndMs": document.get("networkEndTime"),
+                      "lcpResourceProtocol": lcp_request.get("protocol"),
+                      "lcpResourcePriority": lcp_request.get("priority"),
+                  })
+                  print("LIGHTHOUSE_SAMPLE_TIMING " + json.dumps(timing, separators=(",", ":")))
           PY
