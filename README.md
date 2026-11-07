@@ -17,6 +17,7 @@
 | `create-release.yml` | Create a GitHub release without publishing a Python package |
 | `sync-description.yml` | Validate the marked README tagline and sync the repository description |
 | `production-delivery.yml` | Sync the approved caller’s Production secrets and deploy its exact CI-passing commit |
+| `lighthouse-ci.yml` | Audit a live public page and publish representative Lighthouse scores |
 
 The composite `check-version` action reads a static or Hatch-managed project version and reports whether its Git tag already exists.
 
@@ -41,6 +42,31 @@ jobs:
 ```
 
 Repository-fleet auditing is implemented in the separate private `private-maintain` project. This repository intentionally contains no audit engine, remediation CLI, bulk-administration scripts, or project-specific maintenance skills.
+
+## Lighthouse CI
+
+Add a caller to the website repository and set `url` to its public production
+page. Use its default branch in the push trigger. Pin the reusable workflow to
+a reviewed commit SHA when reproducibility is required.
+
+```yaml
+name: Lighthouse CI
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+jobs:
+  audit:
+    uses: tsilva/.github/.github/workflows/lighthouse-ci.yml@main
+    with:
+      url: https://example.com/
+```
+
+The workflow runs three desktop audits and writes the representative scores and
+a temporary public report link to the Actions summary. It disables Actions
+archive uploads and blocks standard Google Analytics requests during the audit.
+Use an unauthenticated HTTPS URL without credentials, a query, or a fragment.
 
 ## Trusted production delivery
 

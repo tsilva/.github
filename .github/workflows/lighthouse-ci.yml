@@ -1,0 +1,93 @@
+name: Lighthouse CI
+
+on:
+  workflow_call:
+    inputs:
+      url:
+        description: Public HTTPS page to audit
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  audit:
+    name: Production Lighthouse audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure Lighthouse
+        env:
+          LIGHTHOUSE_URL: ${{ inputs.url }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib.parse import urlsplit
+
+          url = os.environ["LIGHTHOUSE_URL"]
+          parsed = urlsplit(url)
+          if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+                  or parsed.query or parsed.fragment or any(c.isspace() for c in url)):
+              raise SystemExit("Provide a public HTTPS URL without credentials, a query, or a fragment.")
+
+          config = {
+              "ci": {
+                  "collect": {
+                      "url": [url],
+                      "numberOfRuns": 3,
+                      "settings": {
+                          "preset": "desktop",
+                          "blockedUrlPatterns": [
+                              "https://www.googletagmanager.com/gtag/js*",
+                              "https://www.googletagmanager.com/gtm.js*",
+                              "https://*.google-analytics.com/*",
+                              "https://analytics.google.com/g/collect*",
+                              "https://stats.g.doubleclick.net/g/collect*",
+                          ],
+                      },
+                  },
+              },
+          }
+          (Path(os.environ["RUNNER_TEMP"]) / "lighthouse-ci.json").write_text(json.dumps(config))
+          PY
+
+      - name: Run Lighthouse CI
+        id: lighthouse
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12
+        with:
+          configPath: ${{ runner.temp }}/lighthouse-ci.json
+          uploadArtifacts: false
+          temporaryPublicStorage: true
+
+      - name: Summarize Lighthouse results
+        env:
+          LIGHTHOUSE_URL: ${{ inputs.url }}
+          LIGHTHOUSE_LINKS: ${{ steps.lighthouse.outputs.links }}
+          LIGHTHOUSE_MANIFEST: ${{ steps.lighthouse.outputs.manifest }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          (report_url,) = json.loads(os.environ["LIGHTHOUSE_LINKS"]).values()
+          runs = json.loads(os.environ["LIGHTHOUSE_MANIFEST"])
+          (scores,) = (run["summary"] for run in runs if run["isRepresentativeRun"])
+          summary = [
+              "## Lighthouse CI",
+              "",
+              f"Audited `{os.environ['LIGHTHOUSE_URL']}` in {len(runs)} desktop runs.",
+              "",
+              f"[Open the temporary public report]({report_url})",
+              "",
+              "| Category | Representative score |",
+              "| --- | ---: |",
+          ]
+          for name, score in scores.items():
+              if isinstance(score, (int, float)):
+                  summary.append(f"| {name.replace('-', ' ').capitalize()} | {round(score * 100)} |")
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(summary) + "\n")
+          PY
