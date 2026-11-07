@@ -57,10 +57,13 @@ jobs:
       - name: Run Lighthouse CI
         id: lighthouse
         uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # v12
+        env:
+          LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
         with:
           configPath: ${{ runner.temp }}/lighthouse-ci.json
           uploadArtifacts: false
           temporaryPublicStorage: true
+          uploadExtraArgs: --uploadUrlMap=false
 
       - name: Summarize Lighthouse results
         env:
