@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       sample_timings:
-        description: Log compact performance timings for every sample
+        description: Log compact performance timings and CPU attribution for every sample
         type: boolean
         default: false
 
@@ -80,6 +80,28 @@ jobs:
           import json
           import os
           from pathlib import Path
+          from urllib.parse import urlsplit
+
+          def task_source(url, document_url):
+              try:
+                  parsed = urlsplit(url or "")
+                  hostname = parsed.hostname
+              except ValueError:
+                  return "unattributed"
+              if parsed.scheme not in ("http", "https") or not hostname:
+                  return "unattributed"
+              if hostname != document_url.hostname:
+                  return "host:" + hostname
+              if parsed.path.startswith("/cdn-cgi/"):
+                  return "cloudflare"
+              if parsed.path.startswith("/_next/"):
+                  return "nextjs"
+              if parsed.path == document_url.path:
+                  return "document"
+              return "first-party"
+
+          def audit_items(audits, audit_id):
+              return (audits.get(audit_id, {}).get("details") or {}).get("items", [])
 
           (report_url,) = json.loads(os.environ["LIGHTHOUSE_LINKS"]).values()
           runs = json.loads(os.environ["LIGHTHOUSE_MANIFEST"])
@@ -119,6 +141,15 @@ jobs:
                   initiators = lcp_audit.get("debugData", {}).get("initiatorPath", [])
                   lcp_url = initiators[0]["url"] if initiators else None
                   lcp_request = next((request for request in requests if request["url"] == lcp_url), {})
+                  document_url = urlsplit(document.get("url") or os.environ["LIGHTHOUSE_URL"])
+                  long_tasks = sorted(audit_items(audits, "long-tasks"),
+                                      key=lambda item: item["duration"], reverse=True)[:5]
+                  script_cpu = {}
+                  for item in audit_items(audits, "bootup-time"):
+                      source = task_source(item.get("url"), document_url)
+                      cpu_ms = item.get("scripting", 0) + item.get("scriptParseCompile", 0)
+                      script_cpu[source] = script_cpu.get(source, 0) + cpu_ms
+                  top_scripts = sorted(script_cpu.items(), key=lambda item: item[1], reverse=True)[:5]
                   timing = {name: metrics[name] for name in metric_names if name in metrics}
                   timing.update({
                       "sample": number,
@@ -128,6 +159,16 @@ jobs:
                       "documentEndMs": document.get("networkEndTime"),
                       "lcpResourceProtocol": lcp_request.get("protocol"),
                       "lcpResourcePriority": lcp_request.get("priority"),
+                      "longTasks": [{
+                          "source": task_source(item.get("url"), document_url),
+                          "startMs": round(item["startTime"]),
+                          "durationMs": round(item["duration"]),
+                      } for item in long_tasks],
+                      "scriptCpuMsBySource": {source: round(ms) for source, ms in top_scripts},
+                      "mainThreadWorkMs": {
+                          item["group"]: round(item["duration"])
+                          for item in audit_items(audits, "mainthread-work-breakdown")
+                      },
                   })
                   print("LIGHTHOUSE_SAMPLE_TIMING " + json.dumps(timing, separators=(",", ":")))
           PY

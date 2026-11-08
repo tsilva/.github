@@ -67,8 +67,10 @@ The workflow runs three desktop audits and writes the representative scores and
 a temporary public report link to the Actions summary. It disables Actions
 archive uploads and blocks standard Google Analytics requests during the audit.
 Use an unauthenticated HTTPS URL without credentials, a query, or a fragment.
-Set `sample_timings: true` under `with` to include compact per-sample performance
-timings in the job log.
+Set `sample_timings: true` under `with` to log per-sample performance timings,
+main-thread work, and up to five long tasks and script CPU sources. Attribution
+uses first-party categories and third-party hostnames. It omits resource paths
+and query strings.
 
 ## Trusted production delivery
 
