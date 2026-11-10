@@ -203,11 +203,18 @@ jobs:
           VERCEL_DEPLOYMENT_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
           VERCEL_SKEW_PROTECTION_ENABLED: '1'
           REQUIRE_SOURCE_MAPS: ${{ inputs.source_maps }}
+          RESHOOT_BUILD_FIXTURES: ${{ inputs.verify_clerk_runtime }}
           SENTRY_AUTH_TOKEN: ${{ inputs.source_maps && secrets.SENTRY_AUTH_TOKEN || '' }}
         run: |
           set -euo pipefail
           cd "$APP_ROOT"
           artifact_dir="$GITHUB_WORKSPACE/.vercel/output"
+          if [[ "$RESHOOT_BUILD_FIXTURES" == true ]]; then
+            # Match Reshoot CI's inert import-time fixtures. Vercel provides real
+            # database and storage credentials only to the deployed functions.
+            export DATABASE_URL=postgresql://ci:ci@127.0.0.1:5432/reshoot
+            export R2_BUCKET_NAME=reshoot-ci R2_ACCESS_KEY_ID=ci R2_SECRET_ACCESS_KEY=ci
+          fi
           if [[ "$REQUIRE_SOURCE_MAPS" == true ]]; then
             test -n "$SENTRY_AUTH_TOKEN" || { echo 'Missing Production SENTRY_AUTH_TOKEN' >&2; exit 1; }
             vercel build --prod --non-interactive --output "$artifact_dir" 2>&1 | awk '
