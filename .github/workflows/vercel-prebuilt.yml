@@ -240,11 +240,13 @@ jobs:
           deploy=(vercel deploy)
           if [[ "$APP_ROOT" != . ]]; then
             mkdir -p .vercel
-            # Next.js traces may express dependencies from the Git root even
-            # when the project installs them in its own subdirectory.
-            if [[ -d "$APP_ROOT/node_modules" && ! -e node_modules && ! -L node_modules ]]; then
-              ln -s "$APP_ROOT/node_modules" node_modules
-            fi
+            # Next.js traces may express installed and generated dependencies
+            # from the Git root even when both live under the app directory.
+            for directory in node_modules .next; do
+              if [[ -d "$APP_ROOT/$directory" && ! -e "$directory" && ! -L "$directory" ]]; then
+                ln -s "$APP_ROOT/$directory" "$directory"
+              fi
+            done
             jq -n --arg orgId "$VERCEL_ORG_ID" --arg id "$VERCEL_PROJECT_ID" \
               --arg name "$VERCEL_PROJECT_NAME" --arg directory "$APP_ROOT" \
               '{remoteName: "origin", projects: [{orgId: $orgId, id: $id, name: $name, directory: $directory}]}' \
