@@ -207,18 +207,19 @@ jobs:
         run: |
           set -euo pipefail
           cd "$APP_ROOT"
+          artifact_dir="$GITHUB_WORKSPACE/.vercel/output"
           if [[ "$REQUIRE_SOURCE_MAPS" == true ]]; then
             test -n "$SENTRY_AUTH_TOKEN" || { echo 'Missing Production SENTRY_AUTH_TOKEN' >&2; exit 1; }
-            vercel build --prod --non-interactive 2>&1 | awk '
+            vercel build --prod --non-interactive --output "$artifact_dir" 2>&1 | awk '
               { print }
               /Successfully uploaded source maps to Sentry/ { uploaded=1 }
               END { if (!uploaded) { print "Sentry source-map upload was not confirmed" > "/dev/stderr"; exit 1 } }
             '
           else
-            vercel build --prod --non-interactive
+            vercel build --prod --non-interactive --output "$artifact_dir"
           fi
-          jq -e '.version == 3' .vercel/output/config.json
-          test -n "$(find .vercel/output/static .vercel/output/functions -type f -print -quit 2>/dev/null || true)"
+          jq -e '.version == 3' "$artifact_dir/config.json"
+          test -n "$(find "$artifact_dir/static" "$artifact_dir/functions" -type f -print -quit 2>/dev/null || true)"
 
       - name: Stage and verify the prebuilt deployment
         id: deploy
@@ -226,7 +227,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          cd "$APP_ROOT"
+          # The deploy CLI applies the remote rootDirectory to this checkout.
+          # Run from the repository root even when the app was built below it.
           response=$(vercel deploy --prebuilt --prod --skip-domain --archive=tgz --yes --non-interactive \
             --meta "prebuiltCommit=$GITHUB_SHA" --meta "prebuiltRun=$GITHUB_RUN_ID")
           url=$(jq -er 'select(.status == "ok") | .deployment.url' <<< "$response")
