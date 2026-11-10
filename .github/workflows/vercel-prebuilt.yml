@@ -208,7 +208,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$APP_ROOT"
-          artifact_dir="$GITHUB_WORKSPACE/.vercel/output"
+          artifact_dir="$PWD/.vercel/output"
           if [[ "$RESHOOT_BUILD_FIXTURES" == true ]]; then
             # Match Reshoot CI's inert import-time fixtures. Vercel provides real
             # database and storage credentials only to the deployed functions.
@@ -235,8 +235,18 @@ jobs:
         run: |
           set -euo pipefail
           # The deploy CLI applies the remote rootDirectory to this checkout.
-          # Run from the repository root even when the app was built below it.
-          response=$(vercel deploy --prebuilt --prod --skip-domain --archive=tgz --yes --non-interactive \
+          # Keep nested artifacts beside their dependencies and link the checkout
+          # at the repo level so the deploy CLI resolves their path once.
+          deploy=(vercel deploy)
+          if [[ "$APP_ROOT" != . ]]; then
+            mkdir -p .vercel
+            jq -n --arg orgId "$VERCEL_ORG_ID" --arg id "$VERCEL_PROJECT_ID" \
+              --arg name "$VERCEL_PROJECT_NAME" --arg directory "$APP_ROOT" \
+              '{remoteName: "origin", projects: [{orgId: $orgId, id: $id, name: $name, directory: $directory}]}' \
+              > .vercel/repo.json
+            deploy=(env -u VERCEL_ORG_ID -u VERCEL_PROJECT_ID vercel deploy)
+          fi
+          response=$("${deploy[@]}" --prebuilt --prod --skip-domain --archive=tgz --yes --non-interactive \
             --meta "prebuiltCommit=$GITHUB_SHA" --meta "prebuiltRun=$GITHUB_RUN_ID")
           url=$(jq -er 'select(.status == "ok") | .deployment.url' <<< "$response")
           id=$(jq -er 'select(.status == "ok") | .deployment.id' <<< "$response")
