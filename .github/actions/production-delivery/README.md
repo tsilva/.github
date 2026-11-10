@@ -21,6 +21,11 @@ grants `contents: read`, `actions: read`, and `id-token: write`, and passes only
 `VERCEL_TOKEN` (plus `CLOUDFLARE_API_TOKEN` for Chatex). The shared job uses the
 `Production` environment on a fresh GitHub-hosted Ubuntu runner.
 
+Callers that build on GitHub can set `sync_only: true`. The shared job still
+checks the exact commit and syncs its fixed Production allowlist. A separate
+caller job must depend on that job, verify the prebuilt deployment and promote
+it. That job receives no Infisical reader credentials.
+
 Pin the reusable workflow to a reviewed 40-character SHA. Public callers require
 a public shared repository. Private callers may use public shared workflows too.
 Do not add app checkout, caller-controlled inputs, arbitrary scripts or dependency

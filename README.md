@@ -82,6 +82,9 @@ checks out only the shared implementation, waits for the caller's exact latest
 main commit to pass `ci.yml`, fetches secrets directly from Infisical via OIDC,
 syncs only Production variables, and verifies an exact-commit READY deployment.
 
+Callers with a separate prebuilt deployment job can set `sync_only: true` to
+finish the trusted job after synchronization.
+
 Infisical requires the approved caller IDs, owner ID, main branch, Production
 environment and **this reusable workflow at its pinned SHA**. App jobs cannot
 obtain the shared reader directly. The reader still has access to all assigned

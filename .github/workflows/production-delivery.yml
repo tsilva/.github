@@ -2,6 +2,11 @@ name: Trusted production delivery
 
 on:
   workflow_call:
+    inputs:
+      sync_only:
+        description: Sync Production variables for a separate prebuilt deployment job
+        type: boolean
+        default: false
     secrets:
       VERCEL_TOKEN:
         required: false
@@ -69,6 +74,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Deploy and verify the exact synced commit
+        if: '!inputs.sync_only'
         run: python3 trusted-delivery/.github/actions/production-delivery/production_delivery.py deploy
         env:
           GH_TOKEN: ${{ github.token }}
