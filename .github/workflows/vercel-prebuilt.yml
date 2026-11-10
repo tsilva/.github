@@ -23,6 +23,10 @@ on:
       source_maps:
         type: boolean
         default: false
+      verify_clerk_runtime:
+        description: Require a native Production Clerk runtime binding for Reshoot
+        type: boolean
+        default: false
       promote:
         type: boolean
         default: false
@@ -67,6 +71,8 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PUBLIC_ENVIRONMENT: ${{ inputs.public_environment }}
+          PUBLIC_BUILD_OVERRIDES: ${{ vars.VERCEL_PUBLIC_BUILD_OVERRIDES }}
+          VERIFY_CLERK_RUNTIME: ${{ inputs.verify_clerk_runtime }}
         run: |
           set -euo pipefail
           test -n "$VERCEL_TOKEN" || { echo 'Missing Production VERCEL_TOKEN' >&2; exit 1; }
@@ -87,6 +93,14 @@ jobs:
           python3 - <<'PY'
           import json, os, re, subprocess
           team, project = os.environ["VERCEL_ORG_ID"], os.environ["VERCEL_PROJECT_ID"]
+          # These explicitly public values are rendered by the production site.
+          public_override_patterns = {
+              "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY": r"pk_live_[A-Za-z0-9_=-]+",
+              "NEXT_PUBLIC_CLERK_SIGN_IN_URL": r"/sign-in",
+              "NEXT_PUBLIC_CLERK_SIGN_UP_URL": r"/sign-up",
+              "NEXT_PUBLIC_GA_MEASUREMENT_ID": r"G-[A-Z0-9]+",
+              "NEXT_PUBLIC_GOOGLE_ANALYTICS_ID": r"G-[A-Z0-9]+",
+          }
           def get(path):
               result = subprocess.run(["vercel", "api", f"{path}?teamId={team}"],
                                       capture_output=True, timeout=45)
@@ -96,6 +110,8 @@ jobs:
           try:
               domains = json.loads(os.environ["PRODUCTION_DOMAINS"])
               names = json.loads(os.environ["PUBLIC_ENVIRONMENT"])
+              overrides = json.loads(os.environ["PUBLIC_BUILD_OVERRIDES"] or "{}")
+              verify_clerk = os.environ["VERIFY_CLERK_RUNTIME"] == "true"
               if (not isinstance(domains, list) or not domains or len(set(domains)) != len(domains)
                       or not all(re.fullmatch(r"[a-z0-9.-]+\.[a-z0-9]+", name) for name in domains)):
                   raise ValueError("Invalid production domains")
@@ -105,21 +121,44 @@ jobs:
                       raise ValueError("Production domain is not assigned to the expected project")
               if not isinstance(names, list) or len(set(names)) != len(names):
                   raise ValueError("Invalid public variable list")
-              if names:
+              if not isinstance(overrides, dict) or not overrides.keys() <= set(names):
+                  raise ValueError("Invalid public build overrides")
+              if verify_clerk and os.environ["GITHUB_REPOSITORY"] != "tsilva/reshoot":
+                  raise ValueError("Clerk runtime validation is only configured for Reshoot")
+              if names or verify_clerk:
                   rows = get(f"/v10/projects/{project}/env")["envs"]
+                  def matches_production(name):
+                      return [row for row in rows if row.get("key") == name
+                              and "production" in row.get("target", []) and not row.get("gitBranch")]
                   with open(os.environ["GITHUB_ENV"], "a") as out:
+                      if verify_clerk:
+                          bindings = matches_production("CLERK_SECRET_KEY")
+                          if (len(bindings) != 1 or bindings[0].get("type") != "sensitive"
+                                  or bindings[0].get("target") != ["production"]):
+                              raise ValueError("Missing native Production Clerk runtime binding")
+                          out.write("VERCEL_PREBUILT_CLERK_RUNTIME_VERIFIED=1\n")
                       for name in names:
-                          if not re.fullmatch(r"(?:NEXT_PUBLIC_|VITE_|PUBLIC_)[A-Z0-9_]+|SENTRY_(?:ORG|PROJECT|BASE_URL|ENVIRONMENT)", name):
+                          if not re.fullmatch(r"(?:NEXT_PUBLIC_|VITE_|PUBLIC_)[A-Z0-9_]+|SENTRY_(?:ORG|PROJECT|BASE_URL|ENVIRONMENT)|R2_ENDPOINT", name):
                               raise ValueError("Non-public build variable requested")
-                          matches = [row for row in rows if row.get("key") == name
-                                     and "production" in row.get("target", []) and not row.get("gitBranch")]
-                          if (len(matches) != 1 or matches[0].get("type") not in {"encrypted", "plain", "system"}
-                                  or not re.fullmatch(r"[A-Za-z0-9_-]+", matches[0]["id"])):
-                              raise ValueError(f"Missing or private public build variable {name}")
-                          variable = get(f"/v1/projects/{project}/env/{matches[0]['id']}")
-                          value = variable.get("value")
-                          if (variable.get("key") != name or not isinstance(value, str)
-                                  or not value or any(ch in value for ch in "\r\n\0")):
+                          matches = matches_production(name)
+                          if len(matches) != 1:
+                              raise ValueError(f"Missing unique Production build variable {name}")
+                          row = matches[0]
+                          if name in overrides:
+                              value = overrides[name]
+                              pattern = public_override_patterns.get(name)
+                              if (row.get("type") != "sensitive" or not pattern
+                                      or not isinstance(value, str) or not re.fullmatch(pattern, value)):
+                                  raise ValueError(f"Invalid public build override {name}")
+                          else:
+                              if (row.get("type") not in {"encrypted", "plain", "system"}
+                                      or not re.fullmatch(r"[A-Za-z0-9_-]+", row["id"])):
+                                  raise ValueError(f"Unsupported Production build variable {name}")
+                              variable = get(f"/v1/projects/{project}/env/{row['id']}")
+                              if variable.get("key") != name:
+                                  raise ValueError(f"Mismatched Production build variable {name}")
+                              value = variable.get("value")
+                          if not isinstance(value, str) or not value or any(ch in value for ch in "\r\n\0"):
                               raise ValueError(f"Invalid public build variable {name}")
                           out.write(f"{name}={value}\n")
           except ValueError as error:
@@ -129,6 +168,14 @@ jobs:
           except Exception:
               raise SystemExit("Could not prepare public build configuration") from None
           PY
+
+      - name: Install pinned uv for the locked Python build
+        if: hashFiles(format('{0}/uv.lock', env.APP_ROOT)) != ''
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/vercel-uv"
+          "$RUNNER_TEMP/vercel-uv/bin/python" -m pip install --no-deps 'uv==0.11.13'
+          echo "$RUNNER_TEMP/vercel-uv/bin" >> "$GITHUB_PATH"
 
       - name: Install locked application dependencies
         run: |
