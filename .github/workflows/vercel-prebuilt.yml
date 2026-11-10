@@ -88,8 +88,15 @@ jobs:
                   and (.rootDirectory // ".") == $root and (.link.org + "/" + .link.repo) == $repo)
                 | {projectId: .id, orgId: .accountId, projectName: .name,
                    settings: {framework, nodeVersion, buildCommand, installCommand, outputDirectory,
-                              directoryListing, analyticsId, rootDirectory: null}}
+                              directoryListing, analyticsId, rootDirectory, sourceFilesOutsideRootDirectory}}
               ' > "$APP_ROOT/.vercel/project.json"
+          if [[ "$APP_ROOT" != . ]]; then
+            mkdir -p .vercel
+            jq -n --arg orgId "$VERCEL_ORG_ID" --arg id "$VERCEL_PROJECT_ID" \
+              --arg name "$VERCEL_PROJECT_NAME" --arg directory "$APP_ROOT" \
+              '{remoteName: "origin", projects: [{orgId: $orgId, id: $id, name: $name, directory: $directory}]}' \
+              > .vercel/repo.json
+          fi
           python3 - <<'PY'
           import json, os, re, subprocess
           team, project = os.environ["VERCEL_ORG_ID"], os.environ["VERCEL_PROJECT_ID"]
@@ -207,8 +214,8 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ inputs.source_maps && secrets.SENTRY_AUTH_TOKEN || '' }}
         run: |
           set -euo pipefail
-          cd "$APP_ROOT"
-          artifact_dir="$PWD/.vercel/output"
+          # The repository link gives build and upload the same trace root.
+          artifact_dir="$GITHUB_WORKSPACE/$APP_ROOT/.vercel/output"
           if [[ "$RESHOOT_BUILD_FIXTURES" == true ]]; then
             # Match Reshoot CI's inert import-time fixtures. Vercel provides real
             # database and storage credentials only to the deployed functions.
@@ -234,23 +241,9 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          # The deploy CLI applies the remote rootDirectory to this checkout.
-          # Keep nested artifacts beside their dependencies and link the checkout
-          # at the repo level so the deploy CLI resolves their path once.
           deploy=(vercel deploy)
           if [[ "$APP_ROOT" != . ]]; then
-            mkdir -p .vercel
-            # Next.js traces may express installed and generated dependencies
-            # from the Git root even when both live under the app directory.
-            for directory in node_modules .next; do
-              if [[ -d "$APP_ROOT/$directory" && ! -e "$directory" && ! -L "$directory" ]]; then
-                ln -s "$APP_ROOT/$directory" "$directory"
-              fi
-            done
-            jq -n --arg orgId "$VERCEL_ORG_ID" --arg id "$VERCEL_PROJECT_ID" \
-              --arg name "$VERCEL_PROJECT_NAME" --arg directory "$APP_ROOT" \
-              '{remoteName: "origin", projects: [{orgId: $orgId, id: $id, name: $name, directory: $directory}]}' \
-              > .vercel/repo.json
+            # The explicit environment IDs would take precedence over repo.json.
             deploy=(env -u VERCEL_ORG_ID -u VERCEL_PROJECT_ID vercel deploy)
           fi
           response=$("${deploy[@]}" --prebuilt --prod --skip-domain --archive=tgz --yes --non-interactive \
