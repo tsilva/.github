@@ -1,0 +1,223 @@
+name: Vercel prebuilt delivery
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        type: string
+        required: true
+      project_name:
+        type: string
+        required: true
+      root_directory:
+        type: string
+        default: ''
+      production_domains:
+        description: JSON array of production domains to verify
+        type: string
+        required: true
+      public_environment:
+        description: JSON array of public variables required at build time
+        type: string
+        default: '[]'
+      source_maps:
+        type: boolean
+        default: false
+      promote:
+        type: boolean
+        default: false
+    secrets:
+      VERCEL_TOKEN:
+        required: false
+      SENTRY_AUTH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_ORG_ID: team_eE2Iv7IMqPOx8ZVN2xNfR2f0
+  VERCEL_PROJECT_ID: ${{ inputs.project_id }}
+  VERCEL_PROJECT_NAME: ${{ inputs.project_name }}
+  APP_ROOT: ${{ inputs.root_directory || '.' }}
+  PRODUCTION_DOMAINS: ${{ inputs.production_domains }}
+
+jobs:
+  deliver:
+    if: github.ref == 'refs/heads/main' && startsWith(github.repository, 'tsilva/')
+    runs-on: ubuntu-24.04
+    environment: Production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6.3.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install the pinned Vercel CLI
+        run: |
+          npm install --prefix "$RUNNER_TEMP/vercel-cli" --no-save --ignore-scripts --min-release-age=7 vercel@65.4.0
+          echo "$RUNNER_TEMP/vercel-cli/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Verify the target and load public build settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PUBLIC_ENVIRONMENT: ${{ inputs.public_environment }}
+        run: |
+          set -euo pipefail
+          test -n "$VERCEL_TOKEN" || { echo 'Missing Production VERCEL_TOKEN' >&2; exit 1; }
+          [[ "$VERCEL_PROJECT_ID" =~ ^prj_[A-Za-z0-9]+$ ]]
+          [[ "$VERCEL_PROJECT_NAME" =~ ^[a-z0-9-]+$ ]]
+          [[ "$APP_ROOT" == "." || "$APP_ROOT" =~ ^[a-zA-Z0-9_-]+(/[a-zA-Z0-9_-]+)*$ ]]
+          test -d "$APP_ROOT"
+          mkdir -p "$APP_ROOT/.vercel"
+          vercel api "/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" |
+            jq -e --arg id "$VERCEL_PROJECT_ID" --arg team "$VERCEL_ORG_ID" --arg name "$VERCEL_PROJECT_NAME" \
+              --arg root "$APP_ROOT" --arg repo "$GITHUB_REPOSITORY" '
+                select(.id == $id and .accountId == $team and .name == $name and .nodeVersion == "24.x"
+                  and (.rootDirectory // ".") == $root and (.link.org + "/" + .link.repo) == $repo)
+                | {projectId: .id, orgId: .accountId, projectName: .name,
+                   settings: {framework, nodeVersion, buildCommand, installCommand, outputDirectory,
+                              directoryListing, analyticsId, rootDirectory: null}}
+              ' > "$APP_ROOT/.vercel/project.json"
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          team, project = os.environ["VERCEL_ORG_ID"], os.environ["VERCEL_PROJECT_ID"]
+          def get(path):
+              result = subprocess.run(["vercel", "api", f"{path}?teamId={team}"],
+                                      capture_output=True, timeout=45)
+              if result.returncode:
+                  raise ValueError("Vercel refused to read the requested project metadata")
+              return json.loads(result.stdout)
+          try:
+              domains = json.loads(os.environ["PRODUCTION_DOMAINS"])
+              names = json.loads(os.environ["PUBLIC_ENVIRONMENT"])
+              if (not isinstance(domains, list) or not domains or len(set(domains)) != len(domains)
+                      or not all(re.fullmatch(r"[a-z0-9.-]+\.[a-z0-9]+", name) for name in domains)):
+                  raise ValueError("Invalid production domains")
+              for name in domains:
+                  alias = get(f"/v4/aliases/{name}")
+                  if alias.get("alias") != name or alias.get("projectId") != project:
+                      raise ValueError("Production domain is not assigned to the expected project")
+              if not isinstance(names, list) or len(set(names)) != len(names):
+                  raise ValueError("Invalid public variable list")
+              if names:
+                  rows = get(f"/v10/projects/{project}/env")["envs"]
+                  with open(os.environ["GITHUB_ENV"], "a") as out:
+                      for name in names:
+                          if not re.fullmatch(r"(?:NEXT_PUBLIC_|VITE_|PUBLIC_)[A-Z0-9_]+|SENTRY_(?:ORG|PROJECT|BASE_URL|ENVIRONMENT)", name):
+                              raise ValueError("Non-public build variable requested")
+                          matches = [row for row in rows if row.get("key") == name
+                                     and "production" in row.get("target", []) and not row.get("gitBranch")]
+                          if (len(matches) != 1 or matches[0].get("type") not in {"encrypted", "plain", "system"}
+                                  or not re.fullmatch(r"[A-Za-z0-9_-]+", matches[0]["id"])):
+                              raise ValueError(f"Missing or private public build variable {name}")
+                          variable = get(f"/v1/projects/{project}/env/{matches[0]['id']}")
+                          value = variable.get("value")
+                          if (variable.get("key") != name or not isinstance(value, str)
+                                  or not value or any(ch in value for ch in "\r\n\0")):
+                              raise ValueError(f"Invalid public build variable {name}")
+                          out.write(f"{name}={value}\n")
+          except ValueError as error:
+              if type(error) is ValueError:
+                  raise SystemExit(str(error)) from None
+              raise SystemExit("Unexpected Vercel project response") from None
+          except Exception:
+              raise SystemExit("Could not prepare public build configuration") from None
+          PY
+
+      - name: Install locked application dependencies
+        run: |
+          set -euo pipefail
+          cd "$APP_ROOT"
+          if [[ -f pnpm-lock.yaml ]]; then
+            package_manager=$(jq -er '.packageManager | select(test("^pnpm@[0-9]+\\.[0-9]+\\.[0-9]+$"))' package.json)
+            corepack enable
+            corepack prepare "$package_manager" --activate
+            pnpm install --frozen-lockfile --ignore-scripts
+          elif [[ -f package-lock.json ]]; then
+            npm ci --ignore-scripts --min-release-age=7
+          elif [[ -f package.json ]]; then
+            echo 'A supported lockfile is required' >&2
+            exit 1
+          fi
+
+      - name: Build the deployment artifact
+        env:
+          VERCEL_ENV: production
+          VERCEL_TARGET_ENV: production
+          VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+          VERCEL_GIT_COMMIT_REF: ${{ github.ref_name }}
+          VERCEL_DEPLOYMENT_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+          VERCEL_SKEW_PROTECTION_ENABLED: '1'
+          REQUIRE_SOURCE_MAPS: ${{ inputs.source_maps }}
+          SENTRY_AUTH_TOKEN: ${{ inputs.source_maps && secrets.SENTRY_AUTH_TOKEN || '' }}
+        run: |
+          set -euo pipefail
+          cd "$APP_ROOT"
+          if [[ "$REQUIRE_SOURCE_MAPS" == true ]]; then
+            test -n "$SENTRY_AUTH_TOKEN" || { echo 'Missing Production SENTRY_AUTH_TOKEN' >&2; exit 1; }
+            vercel build --prod --non-interactive 2>&1 | awk '
+              { print }
+              /Successfully uploaded source maps to Sentry/ { uploaded=1 }
+              END { if (!uploaded) { print "Sentry source-map upload was not confirmed" > "/dev/stderr"; exit 1 } }
+            '
+          else
+            vercel build --prod --non-interactive
+          fi
+          jq -e '.version == 3' .vercel/output/config.json
+          test -n "$(find .vercel/output/static .vercel/output/functions -type f -print -quit 2>/dev/null || true)"
+
+      - name: Stage and verify the prebuilt deployment
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd "$APP_ROOT"
+          response=$(vercel deploy --prebuilt --prod --skip-domain --archive=tgz --yes --non-interactive \
+            --meta "prebuiltCommit=$GITHUB_SHA" --meta "prebuiltRun=$GITHUB_RUN_ID")
+          url=$(jq -er 'select(.status == "ok") | .deployment.url' <<< "$response")
+          id=$(jq -er 'select(.status == "ok") | .deployment.id' <<< "$response")
+          [[ "$url" =~ ^https://[a-z0-9-]+\.vercel\.app$ ]]
+          [[ "$id" =~ ^dpl_[A-Za-z0-9]+$ ]]
+          vercel api "/v13/deployments/$id?teamId=$VERCEL_ORG_ID" |
+            jq -e --arg id "$id" --arg host "${url#https://}" --arg project "$VERCEL_PROJECT_ID" \
+              --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" '
+                .id == $id and .url == $host and .projectId == $project and .target == "production"
+                and .readyState == "READY" and .prebuilt == true and .alias == []
+                and .meta.prebuiltCommit == $sha and .meta.prebuiltRun == $run
+              '
+          printf 'id=%s\n' "$id" >> "$GITHUB_OUTPUT"
+          printf '%s\n\n%s\n' "Verified staged prebuilt deployment for $GITHUB_SHA" "$url" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Verified staged prebuilt deployment %s\n' "$url"
+
+      - name: Promote the verified deployment
+        if: inputs.promote
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
+        run: |
+          set -euo pipefail
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          test "$current_main" = "$GITHUB_SHA" || { echo 'A newer commit is on main' >&2; exit 1; }
+          vercel api "/v10/projects/$VERCEL_PROJECT_ID/promote/$DEPLOYMENT_ID?teamId=$VERCEL_ORG_ID" --method POST
+          while IFS= read -r domain; do
+            for _ in {1..24}; do
+              if vercel api "/v4/aliases/$domain?teamId=$VERCEL_ORG_ID" |
+                jq -e --arg id "$DEPLOYMENT_ID" --arg project "$VERCEL_PROJECT_ID" --arg domain "$domain" '
+                  .projectId == $project and .alias == $domain and .deploymentId == $id
+                ' >/dev/null; then
+                printf '%s is serving %s\n' "$domain" "$DEPLOYMENT_ID"
+                continue 2
+              fi
+              sleep 5
+            done
+            echo "Timed out waiting for $domain" >&2
+            exit 1
+          done < <(jq -r '.[]' <<< "$PRODUCTION_DOMAINS")

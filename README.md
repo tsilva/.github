@@ -85,6 +85,13 @@ syncs only Production variables, and verifies an exact-commit READY deployment.
 Callers with a separate prebuilt deployment job can set `sync_only: true` to
 finish the trusted job after synchronization.
 
+The reusable `vercel-prebuilt.yml` workflow builds on a standard GitHub runner
+and stages the artifact without assigning production domains. It checks the
+project, build output, exact commit, and READY deployment before promotion.
+Call it after the caller's existing production checks and secret sync, with a
+reviewed public build-variable list. Promotion is opt-in. The build job uses the
+caller's Production environment and receives no Infisical reader permissions.
+
 Infisical requires the approved caller IDs, owner ID, main branch, Production
 environment and **this reusable workflow at its pinned SHA**. App jobs cannot
 obtain the shared reader directly. The reader still has access to all assigned
