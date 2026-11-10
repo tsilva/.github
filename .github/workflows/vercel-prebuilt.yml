@@ -148,6 +148,7 @@ jobs:
 
       - name: Build the deployment artifact
         env:
+          VERCEL: '1'
           VERCEL_ENV: production
           VERCEL_TARGET_ENV: production
           VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
@@ -194,7 +195,7 @@ jobs:
               '
           printf 'id=%s\n' "$id" >> "$GITHUB_OUTPUT"
           printf '%s\n\n%s\n' "Verified staged prebuilt deployment for $GITHUB_SHA" "$url" >> "$GITHUB_STEP_SUMMARY"
-          printf 'Verified staged prebuilt deployment %s\n' "$url"
+          printf 'Verified staged prebuilt deployment %s %s\n' "$id" "$url"
 
       - name: Promote the verified deployment
         if: inputs.promote
