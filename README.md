@@ -78,12 +78,19 @@ Approved app repositories call `production-delivery.yml` pinned to a reviewed fu
 commit SHA. There are no vault, destination or shell-command inputs. Immutable
 GitHub repository IDs select the fixed allowlist in
 [apps.json](.github/actions/production-delivery/apps.json). The privileged job
-checks out only the shared implementation, waits for the caller's exact latest
-main commit to pass `ci.yml`, fetches secrets directly from Infisical via OIDC,
+starts after the caller's `CI` workflow completes successfully for a main-branch
+push. It checks out only the shared implementation, rechecks the exact latest
+main commit's successful `ci.yml`, fetches secrets directly from Infisical via OIDC,
 syncs only Production variables, and verifies an exact-commit READY deployment.
 
 Callers with a separate prebuilt deployment job can set `sync_only: true` to
 finish the trusted job after synchronization.
+
+Automatic callers use `workflow_run` with `workflows: [CI]`, `types: [completed]`
+and `branches: [main]`, plus job conditions rejecting failed, forked and stale
+events before a runner starts. Manual/relay dispatches remain supported, but
+pending or failed CI fails immediately. Change the caller trigger and reviewed
+shared SHA together using the trust contract's rollout procedure.
 
 The reusable `vercel-prebuilt.yml` workflow builds on a standard GitHub runner
 and stages the artifact without assigning production domains. It checks the

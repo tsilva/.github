@@ -20,7 +20,17 @@ permissions:
 
 jobs:
   deliver:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.action == 'completed' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_sha == github.sha &&
+        github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+        github.event.workflow_run.repository.id == github.repository_id &&
+        github.event.workflow_run.head_repository.id == github.repository_id))
     runs-on: ubuntu-24.04
     environment: Production
     timeout-minutes: 60
@@ -59,7 +69,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/actions/production-delivery
 
-      - name: Validate the caller and wait for its exact commit to pass CI
+      - name: Validate the caller and its already successful exact-commit CI
         run: python3 trusted-delivery/.github/actions/production-delivery/production_delivery.py check
         env:
           GH_TOKEN: ${{ github.token }}

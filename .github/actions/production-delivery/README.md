@@ -8,18 +8,30 @@ no caller inputs for source projects, key names, destinations, commands or runne
 The privileged job checks out only this shared repository at the revision in the
 GitHub-issued `job_workflow_ref` claim. It never checks out app code, installs app
 dependencies, restores app caches, uploads artifacts or outputs secret values.
-The caller's `ci.yml` must pass on the exact latest main commit before synchronization.
+The caller's `ci.yml`, named `CI`, must pass on the exact latest main commit before synchronization.
 The deployment helper rechecks that commit before writing and verifies the final
 Vercel Production deployment is READY for that exact SHA.
 
 ## Call contract
 
 The entry workflow must be `.github/workflows/production-delivery.yml` in an
-approved repository, triggered by main pushes or `workflow_dispatch`. The caller
+approved repository, triggered by successful `workflow_run` completion of main-push
+`CI` or by `workflow_dispatch`. Automatic callers use `workflows: [CI]`,
+`types: [completed]` and `branches: [main]`; they do not start delivery on `push`.
+Every job is gated before runner allocation on a successful push CI from the same
+immutable repository, the `ci.yml` path and the delivery run's exact SHA. The caller
 keeps its secret-scanning prerequisite and concurrency group. Its reusable job
 grants `contents: read`, `actions: read`, and `id-token: write`, and passes only
 `VERCEL_TOKEN` (plus `CLOUDFLARE_API_TOKEN` for Chatex). The shared job uses the
 `Production` environment on a fresh GitHub-hosted Ubuntu runner.
+
+The helper checks the event's repository IDs, workflow path, main branch, success,
+run ID and attempt against GitHub's current CI metadata. `workflow_run` uses the
+default-branch tip as `GITHUB_SHA`; a CI event for a different SHA is rejected,
+and the SHA must still be the current head of main before writes. A newer run or
+rerun attempt supersedes the old event. Manual/relay dispatches require the latest
+main-push CI for that same SHA to have already succeeded. Pending or failed CI
+fails immediately, without polling or retrieving application secrets.
 
 Callers that build on GitHub can set `sync_only: true`. The shared job still
 checks the exact commit and syncs its fixed Production allowlist. A separate
@@ -45,7 +57,8 @@ The reader must require all of these signed OIDC claims server-side:
 - audience: `https://app.infisical.com`
 
 Token lifetime is at most 900 seconds. Local checks additionally verify caller
-name/ID, environment, exact SHA and event claims before login. The local JWT
+name/ID, environment, exact SHA and the actual `workflow_run` or
+`workflow_dispatch` event claim before login. The local JWT
 parser does not replace Infisical's signature verification or trust policy.
 
 The published map includes 17 application vaults. The machine identity uses
@@ -81,8 +94,16 @@ bodies or dump the environment while debugging. Error messages are deliberately
 sanitized.
 
 For an update, publish and test the reviewed shared commit, temporarily allow both
-old and new shared SHAs in Infisical, update caller pins, run a canary and then all
+old and new shared SHAs in Infisical, then update each caller's trigger and pin
+together, run a canary and then all
 callers, and remove the old SHA. Never temporarily remove the `job_workflow_ref`
 condition. Test that a normal app job and an unapproved shared revision cannot
 exchange their GitHub tokens. Changes to `apps.json` require source/destination
 review and the same pin rollout as any other trusted-code change.
+
+If the reader additionally binds `event_name`, allow `workflow_run` and
+`workflow_dispatch` while preserving all other claims. Keep old pins authorized
+until every live caller has moved; archived disabled callers remain disabled.
+Existing prebuilt and Worker delivery jobs keep their dependency ordering and
+receive no Infisical reader access. CI caches and artifacts are never consumed
+by the trusted credential job.
