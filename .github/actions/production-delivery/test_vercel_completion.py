@@ -19,10 +19,15 @@ spec.loader.exec_module(d)
 
 
 class VercelCompletion(unittest.TestCase):
+    config_id = "1411588422"
+
     def setUp(self):
         self.sha, self.revision = "a" * 40, "b" * 40
-        self.config = json.loads(Path(__file__).with_name("apps.json").read_text())["1411588422"]
-        self.repo = {"id": 1411588422, "full_name": "tsilva/tubescribe"}
+        self.config = json.loads(Path(__file__).with_name("apps.json").read_text())[self.config_id]
+        self.repo = {
+            "id": self.config["githubRepositoryId"],
+            "full_name": self.config["repository"],
+        }
         self.ci = {
             "id": 123,
             "workflow_id": 124,
@@ -82,7 +87,10 @@ class VercelCompletion(unittest.TestCase):
             "sender": {"id": 35613825, "login": "vercel[bot]", "type": "Bot"},
             "client_payload": {
                 "id": "dpl_test",
-                "project": {"id": self.config["vercelProjectId"], "name": "tubescribe"},
+                "project": {
+                    "id": self.config["vercelProjectId"],
+                    "name": self.config["vercelProjectName"],
+                },
                 "environment": "production",
                 "git": {"sha": self.sha, "ref": "main"},
                 "state": {"type": "success"},
@@ -94,12 +102,13 @@ class VercelCompletion(unittest.TestCase):
         self.path = Path(directory.name) / "event.json"
         self.save_event()
         self.env = {
-            "GITHUB_REPOSITORY": "tsilva/tubescribe",
-            "GITHUB_REPOSITORY_ID": "1411588422",
+            "GITHUB_REPOSITORY": self.config["repository"],
+            "GITHUB_REPOSITORY_ID": self.config_id,
             "GITHUB_REPOSITORY_OWNER_ID": "26742",
             "GITHUB_REF": "refs/heads/main",
             "GITHUB_SHA": self.sha,
-            "GITHUB_WORKFLOW_REF": "tsilva/tubescribe/.github/workflows/production-delivery.yml@refs/heads/main",
+            "GITHUB_WORKFLOW_REF": self.config["repository"]
+            + "/.github/workflows/production-delivery.yml@refs/heads/main",
             "GITHUB_EVENT_NAME": "repository_dispatch",
             "GITHUB_EVENT_PATH": str(self.path),
             "GITHUB_ACTOR_ID": "35613825",
@@ -130,12 +139,13 @@ class VercelCompletion(unittest.TestCase):
         self.assertEqual(method, "GET", "Completion must be read-only")
         if path == "/v13/deployments/dpl_test":
             return self.deployment
-        if path.startswith("/v4/aliases/tubescribe.tsilva.eu?projectId="):
-            return {
-                "alias": "tubescribe.tsilva.eu",
-                "projectId": self.config["vercelProjectId"],
-                "deploymentId": "dpl_test",
-            }
+        for domain in self.config["productionDomains"]:
+            if path == "/v4/aliases/" + domain + "?projectId=" + self.config["vercelProjectId"]:
+                return {
+                    "alias": domain,
+                    "projectId": self.config["vercelProjectId"],
+                    "deploymentId": "dpl_test",
+                }
         self.fail("Unexpected provider request destination")
 
     def complete(self):
@@ -204,6 +214,18 @@ class VercelCompletion(unittest.TestCase):
                     d.context(config)
                 request.assert_not_called()
 
+    def test_prebuilt_and_worker_callers_cannot_enable_events(self):
+        apps = json.loads(Path(__file__).with_name("apps.json").read_text())
+        for config in apps.values():
+            if config["githubRepositoryId"] in (1411588422, 1325113680, 1420482088):
+                continue
+            forged = config | {
+                "eventDrivenDelivery": True,
+                "productionDomains": ["attacker.invalid"],
+            }
+            with self.subTest(repository=config["repository"]):
+                self.assertFalse(d.event_driven(forged))
+
     def test_early_ready_checks_alias_errors_and_wrong_targets_never_pass(self):
         original = copy.deepcopy(self.deployment)
         for change in [
@@ -226,7 +248,7 @@ class VercelCompletion(unittest.TestCase):
         def provider(config, method, path, payload=None):
             if path.startswith("/v4/aliases/"):
                 return {
-                    "alias": "tubescribe.tsilva.eu",
+                    "alias": self.config["productionDomains"][0],
                     "projectId": self.config["vercelProjectId"],
                     "deploymentId": "dpl_newer",
                 }
@@ -235,6 +257,24 @@ class VercelCompletion(unittest.TestCase):
         self.vercel = provider
         with self.assertRaises(d.DeliveryError):
             self.complete()
+
+    def test_every_pinned_domain_must_point_to_the_verified_deployment(self):
+        original = self.vercel
+        for domain in self.config["productionDomains"]:
+
+            def provider(config, method, path, payload=None):
+                if path.startswith("/v4/aliases/" + domain + "?"):
+                    return {
+                        "alias": domain,
+                        "projectId": self.config["vercelProjectId"],
+                        "deploymentId": "dpl_other",
+                    }
+                return original(config, method, path, payload)
+
+            self.vercel = provider
+            with self.subTest(domain=domain), self.assertRaises(d.DeliveryError):
+                self.complete()
+        self.vercel = original
 
     def test_missing_forged_or_replayed_receipts_never_pass(self):
         original = self.meta.copy()
@@ -363,7 +403,7 @@ class VercelCompletion(unittest.TestCase):
             "iss": "https://token.actions.githubusercontent.com",
             "aud": d.INFISICAL,
             "repository": self.config["repository"],
-            "repository_id": "1411588422",
+            "repository_id": self.config_id,
             "repository_owner_id": "26742",
             "ref": "refs/heads/main",
             "sha": self.sha,
@@ -392,3 +432,11 @@ class VercelCompletion(unittest.TestCase):
         ]:
             with self.subTest(key=key), self.assertRaises(d.DeliveryError):
                 d.validate_oidc(token(claims | {key: value}), self.config)
+
+
+class BigInJapanCompletion(VercelCompletion):
+    config_id = "1325113680"
+
+
+class ShelferCompletion(VercelCompletion):
+    config_id = "1420482088"

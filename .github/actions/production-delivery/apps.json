@@ -331,7 +331,12 @@
     "vercelProjectId": "prj_FS5zwkBaMSR2snV3L4eG2v3QqDLj",
     "vercelProjectName": "shelfer",
     "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
-    "configNames": []
+    "configNames": [],
+    "eventDrivenDelivery": true,
+    "productionDomains": [
+      "shelfer.tsilva.eu",
+      "shelfer-tau.vercel.app"
+    ]
   },
   "1186449069": {
     "repository": "tsilva/sigmaevolve",
@@ -405,7 +410,11 @@
     "destination": "vercel",
     "vercelProjectId": "prj_Wq5fe5ZNjpSkcrqjZ0fCRNHX20HF",
     "vercelProjectName": "biginjapan",
-    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0"
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "eventDrivenDelivery": true,
+    "productionDomains": [
+      "biginjapan-bay.vercel.app"
+    ]
   },
   "1411588422": {
     "repository": "tsilva/tubescribe",

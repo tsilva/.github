@@ -552,13 +552,17 @@ def verify_ci(config, sha):
 
 
 def event_driven(config):
-    # Event-driven rollout is deliberately restricted to this immutable caller.
+    # Only reviewed direct-delivery callers, never prebuilt or Worker pipelines.
+    approved = {
+        (1411588422, "tsilva/tubescribe"): ["tubescribe.tsilva.eu"],
+        (1325113680, "tsilva/biginjapan"): ["biginjapan-bay.vercel.app"],
+        (1420482088, "tsilva/shelfer"): ["shelfer.tsilva.eu", "shelfer-tau.vercel.app"],
+    }.get((config.get("githubRepositoryId"), config.get("repository")))
     return (
-        config.get("eventDrivenDelivery") is True
-        and config.get("repository") == "tsilva/tubescribe"
-        and config.get("githubRepositoryId") == 1411588422
+        approved is not None
+        and config.get("eventDrivenDelivery") is True
         and config.get("destination") == "vercel"
-        and config.get("productionDomains") == ["tubescribe.tsilva.eu"]
+        and config.get("productionDomains") == approved
     )
 
 

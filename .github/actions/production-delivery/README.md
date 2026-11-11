@@ -10,8 +10,8 @@ GitHub-issued `job_workflow_ref` claim. It never checks out app code, installs a
 dependencies, restores app caches, uploads artifacts or outputs secret values.
 The caller's `ci.yml`, named `CI`, must pass on the exact latest main commit before synchronization.
 The deployment helper rechecks that commit before writing and verifies the final
-Vercel Production deployment is READY for that exact SHA. TubeScribe performs
-the final verification in a separate completion-event job, as described below.
+Vercel Production deployment is READY for that exact SHA. The reviewed direct
+callers perform final verification in a separate completion-event job below.
 
 ## Call contract
 
@@ -46,8 +46,12 @@ installation to the trusted job.
 
 ## Event-driven Vercel completion
 
-Only TubeScribe's immutable repository ID is enabled in the pinned map. Other
-callers retain synchronous verification and their existing `sync_only` contract.
+TubeScribe, Biginjapan and Shelfer are enabled by immutable repository ID in the
+pinned map. Their Production domains are fixed in trusted code and independently
+verified against Vercel. Biginjapan uses its existing `biginjapan-bay.vercel.app`
+alias; Shelfer verifies both `shelfer.tsilva.eu` and `shelfer-tau.vercel.app`.
+Prebuilt and Worker callers retain their existing verification and `sync_only`
+contracts, including staged checks, source maps and promotion gates.
 No caller input selects an event mode, runner, vault, project, domain or command.
 
 After successful main-push CI (or an authorized manual/relay dispatch), the same
@@ -61,13 +65,13 @@ GitHub deployment record. The final verification job creates that record.
 Custom deployment-protection apps are incompatible with GitHub's opt-out and
 fail closed; do not remove those protections to enable this path.
 
-The caller also accepts Vercel's `vercel.deployment.success`, `.error`, `.canceled`
+The callers also accept Vercel's `vercel.deployment.success`, `.error`, `.canceled`
 and `.failed` repository dispatches, including `.ignored` and `.skipped`
 cancellations. A successful event means Vercel has built
 and automatically promoted the deployment; `deployment.ready` is deliberately
 not accepted. Both workflow conditions and the helper require Vercel's immutable
-bot ID, TubeScribe's immutable repository/project IDs, Production, and the exact
-current main SHA. The event URL and claimed aliases are never fetched or trusted.
+bot ID, the configured caller's immutable repository/project IDs, Production,
+and the exact current main SHA. The event URL and claimed aliases are never fetched or trusted.
 
 Completion validates the protected job's GitHub-issued OIDC identity but does
 not exchange it with Infisical, read app keys, synchronize variables or deploy.
@@ -81,21 +85,24 @@ Finally, the pinned Production hostname must currently point to that exact
 deployment ID. Superseded commits and deployments cannot be reported verified.
 
 Completion has a separate concurrency group so callbacks cannot displace queued
-deployment submissions. Repeated callbacks are read-only. Failure events never
-report READY. There is no scheduled polling or build-wait sleep. The optional
+deployment submissions. Biginjapan and Shelfer keep their committed-secret scan
+as a required predecessor of submission. Their independent completion job never
+checks out application code; it rechecks the same successful CI and delivery
+receipt instead of rerunning the application scanner. Repeated callbacks are
+read-only. Failure events never report READY. There is no scheduled polling or build-wait sleep. The optional
 `verify_deployment_id` input supports a one-shot, read-only `workflow_dispatch`
 recheck; an empty input retains ordinary deployment behavior. A lost completion
 event therefore requires explicit recovery rather than an assumed success.
 
-These short, standard-library-only TubeScribe jobs use the fixed `ubuntu-slim`
+These short, standard-library-only direct-delivery jobs use the fixed `ubuntu-slim`
 runner mapping and a 14-minute timeout. Other callers keep `ubuntu-24.04` and
 their existing timeout. No runner is supplied by callers. Completion adds a
 separate job, so savings depend on build duration and per-job billing rounding;
 using the lightweight runner limits that overhead.
 
 Enabling the reviewed revision requires appending its exact `job_workflow_ref`
-pin to the existing Infisical policy before updating TubeScribe. Preserve all
-old pins, claim restrictions, grants and token lifetimes. Completion does not
+pin to the existing Infisical policy before updating a selected caller. Preserve
+all old pins, claim restrictions, grants and token lifetimes. Completion does not
 need an additional identity, service credential, webhook service or GitHub App.
 
 ## Infisical trust policy
