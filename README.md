@@ -86,6 +86,13 @@ syncs only Production variables, and verifies an exact-commit READY deployment.
 Callers with a separate prebuilt deployment job can set `sync_only: true` to
 finish the trusted job after synchronization.
 
+TubeScribe additionally uses the pinned event-driven mode: the trusted job syncs
+Production and submits its exact tested commit, then ends while Vercel builds.
+Vercel's authenticated completion event starts a read-only verification job.
+Neither submission nor a READY build alone confirms live delivery; the verifier
+checks the original run/CI receipt and the live Production domain. See the
+[event-driven contract](.github/actions/production-delivery/README.md#event-driven-vercel-completion).
+
 Automatic callers use `workflow_run` with `workflows: [CI]`, `types: [completed]`
 and `branches: [main]`, plus job conditions rejecting failed, forked and stale
 events before a runner starts. Manual/relay dispatches remain supported, but

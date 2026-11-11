@@ -10,7 +10,8 @@ GitHub-issued `job_workflow_ref` claim. It never checks out app code, installs a
 dependencies, restores app caches, uploads artifacts or outputs secret values.
 The caller's `ci.yml`, named `CI`, must pass on the exact latest main commit before synchronization.
 The deployment helper rechecks that commit before writing and verifies the final
-Vercel Production deployment is READY for that exact SHA.
+Vercel Production deployment is READY for that exact SHA. TubeScribe performs
+the final verification in a separate completion-event job, as described below.
 
 ## Call contract
 
@@ -42,6 +43,60 @@ Pin the reusable workflow to a reviewed 40-character SHA. Public callers require
 a public shared repository. Private callers may use public shared workflows too.
 Do not add app checkout, caller-controlled inputs, arbitrary scripts or dependency
 installation to the trusted job.
+
+## Event-driven Vercel completion
+
+Only TubeScribe's immutable repository ID is enabled in the pinned map. Other
+callers retain synchronous verification and their existing `sync_only` contract.
+No caller input selects an event mode, runner, vault, project, domain or command.
+
+After successful main-push CI (or an authorized manual/relay dispatch), the same
+trusted job validates GitHub OIDC, syncs the allowlisted Production keys, then
+submits the exact SHA to Vercel. Deployment metadata binds the submission to its
+initiating run ID/attempt, shared implementation SHA, and successful CI run
+ID/attempt. The job ends without polling. Its success confirms submission only.
+For this phase, `environment.deployment: false` keeps Production secrets, branch
+restrictions, required reviewers and wait timers, but avoids a premature green
+GitHub deployment record. The final verification job creates that record.
+Custom deployment-protection apps are incompatible with GitHub's opt-out and
+fail closed; do not remove those protections to enable this path.
+
+The caller also accepts Vercel's `vercel.deployment.success`, `.error`, `.canceled`
+and `.failed` repository dispatches, including `.ignored` and `.skipped`
+cancellations. A successful event means Vercel has built
+and automatically promoted the deployment; `deployment.ready` is deliberately
+not accepted. Both workflow conditions and the helper require Vercel's immutable
+bot ID, TubeScribe's immutable repository/project IDs, Production, and the exact
+current main SHA. The event URL and claimed aliases are never fetched or trusted.
+
+Completion validates the protected job's GitHub-issued OIDC identity but does
+not exchange it with Infisical, read app keys, synchronize variables or deploy.
+It independently rechecks GitHub's latest exact-commit CI; Vercel's project,
+team, repository link, READY state and successful domain assignment; the stored
+receipt; and the original caller run, attempt and pinned reusable workflow.
+Failed, cancelled, replaced or retried initiators are rejected. A callback may
+arrive while the initiating run is finishing cleanup: an in-progress original
+run is permitted only with the same verified receipt and trusted callee pin.
+Finally, the pinned Production hostname must currently point to that exact
+deployment ID. Superseded commits and deployments cannot be reported verified.
+
+Completion has a separate concurrency group so callbacks cannot displace queued
+deployment submissions. Repeated callbacks are read-only. Failure events never
+report READY. There is no scheduled polling or build-wait sleep. The optional
+`verify_deployment_id` input supports a one-shot, read-only `workflow_dispatch`
+recheck; an empty input retains ordinary deployment behavior. A lost completion
+event therefore requires explicit recovery rather than an assumed success.
+
+These short, standard-library-only TubeScribe jobs use the fixed `ubuntu-slim`
+runner mapping and a 14-minute timeout. Other callers keep `ubuntu-24.04` and
+their existing timeout. No runner is supplied by callers. Completion adds a
+separate job, so savings depend on build duration and per-job billing rounding;
+using the lightweight runner limits that overhead.
+
+Enabling the reviewed revision requires appending its exact `job_workflow_ref`
+pin to the existing Infisical policy before updating TubeScribe. Preserve all
+old pins, claim restrictions, grants and token lifetimes. Completion does not
+need an additional identity, service credential, webhook service or GitHub App.
 
 ## Infisical trust policy
 
@@ -93,10 +148,11 @@ and lint both workflow YAML files before publication. Never log provider respons
 bodies or dump the environment while debugging. Error messages are deliberately
 sanitized.
 
-For an update, publish and test the reviewed shared commit, temporarily allow both
-old and new shared SHAs in Infisical, then update each caller's trigger and pin
-together, run a canary and then all
-callers, and remove the old SHA. Never temporarily remove the `job_workflow_ref`
+For an update, publish and test the reviewed shared commit, append the new exact
+shared SHA in Infisical while retaining previous pins, then update the selected
+caller's trigger and pin together and verify a canary. Old-pin removal requires
+separate authorization after reviewing the corresponding live callers. Never
+temporarily remove the `job_workflow_ref`
 condition. Test that a normal app job and an unapproved shared revision cannot
 exchange their GitHub tokens. Changes to `apps.json` require source/destination
 review and the same pin rollout as any other trusted-code change.

@@ -7,6 +7,10 @@ on:
         description: Sync Production variables for a separate prebuilt deployment job
         type: boolean
         default: false
+      verify_deployment_id:
+        description: Read-only manual recovery for a pinned event-driven deployment
+        type: string
+        default: ""
     secrets:
       VERCEL_TOKEN:
         required: false
@@ -30,14 +34,26 @@ jobs:
         github.event.workflow_run.head_sha == github.sha &&
         github.event.workflow_run.path == '.github/workflows/ci.yml' &&
         github.event.workflow_run.repository.id == github.repository_id &&
-        github.event.workflow_run.head_repository.id == github.repository_id))
-    runs-on: ubuntu-24.04
-    environment: Production
-    timeout-minutes: 60
+        github.event.workflow_run.head_repository.id == github.repository_id) ||
+       (github.event_name == 'repository_dispatch' &&
+        github.repository_id == '1411588422' && github.event.sender.id == 35613825 &&
+        github.event.sender.login == 'vercel[bot]' && github.actor_id == '35613825' &&
+        github.event.client_payload.project.id == 'prj_2O9aw5ukOM9mfDR1wSRM90sewBih' &&
+        github.event.client_payload.environment == 'production' &&
+        github.event.client_payload.git.sha == github.sha &&
+        contains(fromJSON('["vercel.deployment.success","vercel.deployment.error","vercel.deployment.canceled","vercel.deployment.failed","vercel.deployment.ignored","vercel.deployment.skipped"]'), github.event.action)))
+    # Fixed immutable caller mapping, never a caller-supplied runner input.
+    runs-on: ${{ github.repository_id == '1411588422' && 'ubuntu-slim' || 'ubuntu-24.04' }}
+    environment:
+      name: Production
+      # Submission is not live delivery. Keep environment access/protection,
+      # but create the deployment record only for final verification.
+      deployment: ${{ github.repository_id != '1411588422' || github.event_name == 'repository_dispatch' || inputs.verify_deployment_id != '' }}
+    timeout-minutes: ${{ github.repository_id == '1411588422' && 14 || 60 }}
     steps:
       - name: Resolve the trusted workflow revision from GitHub OIDC
         id: trust
-        shell: python
+        shell: python3 {0}
         run: |
           import base64, json, os, re, urllib.parse, urllib.request
           class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -76,6 +92,7 @@ jobs:
           SHARED_DELIVERY_REVISION: ${{ steps.trust.outputs.revision }}
 
       - name: Fetch the caller's allowlisted secrets and sync Production
+        if: github.event_name != 'repository_dispatch' && inputs.verify_deployment_id == ''
         run: python3 trusted-delivery/.github/actions/production-delivery/production_delivery.py sync
         env:
           GH_TOKEN: ${{ github.token }}
@@ -83,10 +100,19 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
-      - name: Deploy and verify the exact synced commit
-        if: '!inputs.sync_only'
+      - name: Submit or deploy the exact synced commit
+        if: github.event_name != 'repository_dispatch' && inputs.verify_deployment_id == '' && !inputs.sync_only
         run: python3 trusted-delivery/.github/actions/production-delivery/production_delivery.py deploy
         env:
           GH_TOKEN: ${{ github.token }}
           SHARED_DELIVERY_REVISION: ${{ steps.trust.outputs.revision }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Verify the completed deployment and Production domain without polling
+        if: github.event_name == 'repository_dispatch' || inputs.verify_deployment_id != ''
+        run: python3 trusted-delivery/.github/actions/production-delivery/production_delivery.py complete
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHARED_DELIVERY_REVISION: ${{ steps.trust.outputs.revision }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERIFY_DEPLOYMENT_ID: ${{ inputs.verify_deployment_id }}

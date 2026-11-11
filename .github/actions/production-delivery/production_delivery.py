@@ -98,10 +98,9 @@ def context(config):
     if (
         required("GITHUB_REPOSITORY") != config["repository"]
         or required("GITHUB_REF") != "refs/heads/main"
-        or required("GITHUB_EVENT_NAME") not in ("workflow_run", "workflow_dispatch")
+        or not allowed_event(config)
         or required("GITHUB_WORKFLOW_REF")
-        != config["repository"]
-        + "/.github/workflows/production-delivery.yml@refs/heads/main"
+        != config["repository"] + "/.github/workflows/production-delivery.yml@refs/heads/main"
     ):
         raise DeliveryError(
             "Workflow repository, branch, event or workflow path mismatch; no writes."
@@ -109,7 +108,10 @@ def context(config):
     sha = required("GITHUB_SHA")
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise DeliveryError("Invalid commit SHA; no writes.")
-    triggering_ci_run(config, sha)
+    if required("GITHUB_EVENT_NAME") == "repository_dispatch":
+        completion_event(config, sha)
+    else:
+        triggering_ci_run(config, sha)
     latest = request(
         "GET",
         GITHUB + "/repos/" + config["repository"] + "/git/ref/heads/main",
@@ -137,31 +139,28 @@ def validate_oidc(jwt, config):
             "ref": "refs/heads/main",
             "sha": required("GITHUB_SHA"),
             "environment": "Production",
-            "workflow_ref": config["repository"] + "/.github/workflows/production-delivery.yml@refs/heads/main",
-            "job_workflow_ref": "tsilva/.github/.github/workflows/production-delivery.yml@" + required("SHARED_DELIVERY_REVISION"),
+            "workflow_ref": config["repository"]
+            + "/.github/workflows/production-delivery.yml@refs/heads/main",
+            "job_workflow_ref": "tsilva/.github/.github/workflows/production-delivery.yml@"
+            + required("SHARED_DELIVERY_REVISION"),
         }
         if any(claims.get(key) != value for key, value in expected.items()):
             raise ValueError()
-        if (
-            claims.get("event_name") != required("GITHUB_EVENT_NAME")
-            or claims["event_name"] not in ("workflow_run", "workflow_dispatch")
-        ):
+        if claims.get("event_name") != required("GITHUB_EVENT_NAME") or not allowed_event(config):
             raise ValueError()
+        if claims["event_name"] == "repository_dispatch":
+            completion_event(config, required("GITHUB_SHA"))
         now = time.time()
         if not now < claims["exp"] <= now + 900 or claims["iat"] > now + 30:
             raise ValueError()
     except Exception:
-        raise DeliveryError("GitHub OIDC claims do not identify the pinned trusted job; no login.") from None
+        raise DeliveryError(
+            "GitHub OIDC claims do not identify the pinned trusted job; no login."
+        ) from None
 
 
-def infisical_secrets(config):
-    names = config["secretNames"]
-    if not names:
-        return {}
-    if len(names) != len(set(names)) or any(
-        not re.fullmatch(r"[A-Z][A-Z0-9_]*", name) for name in names
-    ):
-        raise DeliveryError("Invalid pinned source allowlist; no writes.")
+def workflow_oidc(config):
+    """Obtain job identity only from GitHub's authenticated HTTPS endpoint."""
     url = required("ACTIONS_ID_TOKEN_REQUEST_URL")
     parsed = urllib.parse.urlsplit(url)
     if (
@@ -178,6 +177,20 @@ def infisical_secrets(config):
     )["value"]
     mask(jwt)
     validate_oidc(jwt, config)
+    return jwt
+
+
+def infisical_secrets(config):
+    names = config["secretNames"]
+    if not names:
+        return {}
+    if len(names) != len(set(names)) or any(
+        not re.fullmatch(r"[A-Z][A-Z0-9_]*", name) for name in names
+    ):
+        raise DeliveryError("Invalid pinned source allowlist; no writes.")
+    if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch":
+        raise DeliveryError("Completion events cannot access Infisical or synchronize secrets.")
+    jwt = workflow_oidc(config)
     login = request(
         "POST",
         INFISICAL + "/api/v1/auth/oidc-auth/login",
@@ -199,9 +212,9 @@ def infisical_secrets(config):
     values = {}
     for name in names:
         try:
-            secret = request(
-                "GET", INFISICAL + "/api/v4/secrets/" + name + "?" + query, token
-            )["secret"]
+            secret = request("GET", INFISICAL + "/api/v4/secrets/" + name + "?" + query, token)[
+                "secret"
+            ]
         except ProviderHTTPError as error:
             raise DeliveryError(
                 f"Cannot read required Infisical production key {name} "
@@ -522,9 +535,7 @@ def verify_ci(config, sha):
     try:
         runs = request("GET", url, required("GH_TOKEN"))["workflow_runs"]
         candidates = [run for run in runs if run.get("head_sha") == sha]
-        if not candidates or any(
-            type(run.get("run_number")) is not int for run in candidates
-        ):
+        if not candidates or any(type(run.get("run_number")) is not int for run in candidates):
             raise ValueError()
         latest = max(candidates, key=lambda run: run["run_number"])
         validate_ci_run(latest, config, sha)
@@ -537,6 +548,181 @@ def verify_ci(config, sha):
         raise DeliveryError(
             "The latest exact-commit CI run must already have succeeded; delivery held without waiting."
         ) from None
+    return latest
+
+
+def event_driven(config):
+    # Event-driven rollout is deliberately restricted to this immutable caller.
+    return (
+        config.get("eventDrivenDelivery") is True
+        and config.get("repository") == "tsilva/tubescribe"
+        and config.get("githubRepositoryId") == 1411588422
+        and config.get("destination") == "vercel"
+        and config.get("productionDomains") == ["tubescribe.tsilva.eu"]
+    )
+
+
+def allowed_event(config):
+    event = required("GITHUB_EVENT_NAME")
+    return event in ("workflow_run", "workflow_dispatch") or (
+        event == "repository_dispatch" and event_driven(config)
+    )
+
+
+def completion_event(config, sha):
+    """The event is a hint; deployment state and receipt are verified separately."""
+    try:
+        if not event_driven(config) or required("GITHUB_EVENT_NAME") != "repository_dispatch":
+            raise ValueError()
+        event = json.loads(Path(required("GITHUB_EVENT_PATH")).read_text())
+        if event["action"] not in (
+            "vercel.deployment.success",
+            "vercel.deployment.error",
+            "vercel.deployment.canceled",
+            "vercel.deployment.failed",
+            "vercel.deployment.ignored",
+            "vercel.deployment.skipped",
+        ):
+            raise ValueError()
+        repo, sender, payload = event["repository"], event["sender"], event["client_payload"]
+        if (
+            type(repo["id"]) is not int
+            or repo["id"] != config["githubRepositoryId"]
+            or repo["full_name"] != config["repository"]
+            or type(sender["id"]) is not int
+            or sender["id"] != 35613825
+            or sender["login"] != "vercel[bot]"
+            or sender["type"] != "Bot"
+            or required("GITHUB_ACTOR_ID") != "35613825"
+            or payload["project"]["id"] != config["vercelProjectId"]
+            or payload["project"]["name"] != config["vercelProjectName"]
+            or payload["environment"] != "production"
+            or payload["git"]["sha"] != sha
+            or payload["git"]["ref"] not in ("main", "refs/heads/main", sha)
+            or payload["state"]["type"] != event["action"].removeprefix("vercel.deployment.")
+        ):
+            raise ValueError()
+        return event["action"], payload
+    except (OSError, KeyError, TypeError, ValueError):
+        raise DeliveryError(
+            "Unapproved Vercel completion event; no credentials requested."
+        ) from None
+
+
+def positive_id(value):
+    if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", value):
+        raise DeliveryError("Missing or invalid trusted delivery receipt.")
+    return int(value)
+
+
+def deployment_id(value):
+    if not isinstance(value, str) or not re.fullmatch(r"dpl_[A-Za-z0-9]{1,64}", value):
+        raise DeliveryError("Invalid deployment identity; no provider request.")
+    return value
+
+
+def verify_delivery_receipt(config, sha, deployment, ci):
+    meta = deployment.get("meta", {})
+    if (
+        meta.get("infisicalDeliveryProtocol") != "events-v1"
+        or meta.get("infisicalDeliveryCommit") != sha
+        or meta.get("githubCommitSha") != sha
+        or meta.get("infisicalDeliveryRevision") != required("SHARED_DELIVERY_REVISION")
+        or positive_id(meta.get("infisicalDeliveryCiRun")) != ci["id"]
+        or positive_id(meta.get("infisicalDeliveryCiAttempt")) != ci["run_attempt"]
+    ):
+        raise DeliveryError("Deployment does not match this trusted exact-commit CI receipt.")
+    run_id = positive_id(meta.get("infisicalDeliveryRun"))
+    attempt = positive_id(meta.get("infisicalDeliveryRunAttempt"))
+    run = request(
+        "GET",
+        GITHUB + "/repos/" + config["repository"] + "/actions/runs/" + str(run_id),
+        required("GH_TOKEN"),
+    )
+    try:
+        for key in ("id", "workflow_id", "run_number", "run_attempt"):
+            if type(run[key]) is not int or run[key] <= 0:
+                raise ValueError()
+        if (
+            run["id"] != run_id
+            or run["run_attempt"] != attempt
+            or run["path"] != ".github/workflows/production-delivery.yml"
+            or run["head_sha"] != sha
+            or run["head_branch"] != "main"
+            or run["event"] not in ("workflow_run", "workflow_dispatch")
+            or not (
+                (run["status"] == "completed" and run["conclusion"] == "success")
+                or (run["status"] == "in_progress" and run["conclusion"] is None)
+            )
+        ):
+            raise ValueError()
+        for key in ("repository", "head_repository"):
+            if (
+                type(run[key]["id"]) is not int
+                or run[key]["id"] != config["githubRepositoryId"]
+                or run[key]["full_name"] != config["repository"]
+            ):
+                raise ValueError()
+        revision = required("SHARED_DELIVERY_REVISION")
+        expected = "tsilva/.github/.github/workflows/production-delivery.yml@" + revision
+        if not any(
+            x.get("path") == expected and x.get("sha") == revision
+            for x in run["referenced_workflows"]
+        ):
+            raise ValueError()
+    except (KeyError, TypeError, ValueError):
+        raise DeliveryError(
+            "Deployment's initiating trusted workflow or attempt could not be verified."
+        ) from None
+
+
+def complete_vercel(config):
+    if not event_driven(config):
+        raise DeliveryError("Event-driven completion is not enabled for this caller.")
+    sha = context(config)
+    if required("GITHUB_EVENT_NAME") == "repository_dispatch":
+        action, payload = completion_event(config, sha)
+        if action != "vercel.deployment.success":
+            raise DeliveryError(
+                "Vercel reported deployment failure or cancellation; production is not verified."
+            )
+        identifier = deployment_id(payload.get("id"))
+    elif required("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        identifier = deployment_id(required("VERIFY_DEPLOYMENT_ID"))
+    else:
+        raise DeliveryError("Completion requires a trusted event or explicit manual verification.")
+    ci = verify_ci(config, sha)
+    workflow_oidc(config)
+    verify_vercel(config)
+    deployment = vercel_request(config, "GET", "/v13/deployments/" + identifier)
+    if (
+        deployment.get("id") != identifier
+        or deployment.get("projectId") != config["vercelProjectId"]
+        or deployment.get("target") != "production"
+        or deployment.get("readyState", deployment.get("status")) != "READY"
+        or not production_aliases_assigned(deployment)
+    ):
+        raise DeliveryError(
+            "Production is not READY with all required checks and domain assignment; no polling."
+        )
+    verify_delivery_receipt(config, sha, deployment, ci)
+    for domain in config["productionDomains"]:
+        alias = vercel_request(
+            config,
+            "GET",
+            "/v4/aliases/"
+            + urllib.parse.quote(domain, safe="")
+            + "?projectId="
+            + config["vercelProjectId"],
+        )
+        if (
+            alias.get("alias") != domain
+            or alias.get("projectId") != config["vercelProjectId"]
+            or alias.get("deploymentId") != identifier
+        ):
+            raise DeliveryError("Production domain does not serve this exact deployment.")
+    context(config)
+    print("Production READY: " + identifier + " commit " + sha)
 
 
 def production_aliases_assigned(deployment):
@@ -550,33 +736,52 @@ def production_aliases_assigned(deployment):
 
 
 def deploy_vercel(config, sha):
-    verify_ci(config, sha)
+    if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch":
+        raise DeliveryError("Completion events cannot create deployments.")
+    ci = verify_ci(config, sha)
     context(config)
     verify_vercel(config)
+    payload = {
+        "name": config["vercelProjectName"],
+        "project": config["vercelProjectId"],
+        "target": "production",
+        "gitSource": {"type": "github", "repoId": str(config["githubRepositoryId"]), "ref": sha},
+        "meta": {"infisicalDeliveryCommit": sha, "infisicalDeliveryRun": required("GITHUB_RUN_ID")},
+    }
+    if event_driven(config):
+        workflow_oidc(config)
+        positive_id(required("GITHUB_RUN_ID"))
+        positive_id(required("GITHUB_RUN_ATTEMPT"))
+        payload["meta"].update(
+            {
+                "infisicalDeliveryProtocol": "events-v1",
+                "infisicalDeliveryRunAttempt": required("GITHUB_RUN_ATTEMPT"),
+                "infisicalDeliveryRevision": required("SHARED_DELIVERY_REVISION"),
+                "infisicalDeliveryCiRun": str(ci["id"]),
+                "infisicalDeliveryCiAttempt": str(ci["run_attempt"]),
+            }
+        )
     result = vercel_request(
         config,
         "POST",
         "/v13/deployments",
-        {
-            "name": config["vercelProjectName"],
-            "project": config["vercelProjectId"],
-            "target": "production",
-            "gitSource": {
-                "type": "github",
-                "repoId": str(config["githubRepositoryId"]),
-                "ref": sha,
-            },
-            "meta": {
-                "infisicalDeliveryCommit": sha,
-                "infisicalDeliveryRun": required("GITHUB_RUN_ID"),
-            },
-        },
+        payload,
     )
     deployment_id = result.get("id")
     if not isinstance(deployment_id, str) or not deployment_id.startswith("dpl_"):
-        raise DeliveryError(
-            "Deployment creation was not confirmed; response suppressed."
+        raise DeliveryError("Deployment creation was not confirmed; response suppressed.")
+    if event_driven(config):
+        if not re.fullmatch(r"dpl_[A-Za-z0-9]+", deployment_id):
+            raise DeliveryError("Deployment creation returned an invalid identity.")
+        context(config)
+        print(
+            "Production submitted: "
+            + deployment_id
+            + " commit "
+            + sha
+            + "; awaiting verified Vercel completion event."
         )
+        return
     deadline = time.monotonic() + 1500
     while time.monotonic() < deadline:
         deployment = vercel_request(config, "GET", "/v13/deployments/" + deployment_id)
@@ -587,9 +792,7 @@ def deploy_vercel(config, sha):
             raise DeliveryError("Deployment target verification failed.")
         state = deployment.get("readyState", deployment.get("status"))
         if state in ("ERROR", "CANCELED"):
-            raise DeliveryError(
-                "Vercel production build failed; inspect the deployment in Vercel."
-            )
+            raise DeliveryError("Vercel production build failed; inspect the deployment in Vercel.")
         if state == "READY":
             if deployment.get("meta", {}).get("githubCommitSha") != sha:
                 raise DeliveryError("Deployment commit verification failed.")
@@ -605,11 +808,18 @@ def deploy_vercel(config, sha):
 
 
 def main():
-    if sys.argv[1:] not in (["sync"], ["deploy"], ["check"], ["worker-health"]):
-        raise DeliveryError("Use only the fixed check, sync or deploy operation.")
+    if sys.argv[1:] not in (["sync"], ["deploy"], ["check"], ["worker-health"], ["complete"]):
+        raise DeliveryError("Use only the fixed check, sync, deploy or complete operation.")
     config = configuration()
     sha = context(config)
-    if sys.argv[1] == "check":
+    if required("GITHUB_EVENT_NAME") == "repository_dispatch" and sys.argv[1] not in (
+        "check",
+        "complete",
+    ):
+        raise DeliveryError("Completion events cannot request deployment or secret writes.")
+    if sys.argv[1] == "complete":
+        complete_vercel(config)
+    elif sys.argv[1] == "check":
         verify_ci(config, sha)
         context(config)
         print("CI passed for commit " + sha)
@@ -629,10 +839,7 @@ def main():
             verify_vercel(config)
         else:
             raise DeliveryError("Unsupported pinned destination; no writes.")
-        print(
-            str(len(values))
-            + " allowlisted keys synced; destination metadata verified."
-        )
+        print(str(len(values)) + " allowlisted keys synced; destination metadata verified.")
 
 
 if __name__ == "__main__":
@@ -642,7 +849,5 @@ if __name__ == "__main__":
         print(str(error), file=sys.stderr)
         sys.exit(1)
     except Exception:
-        print(
-            "Production delivery failed; private details suppressed.", file=sys.stderr
-        )
+        print("Production delivery failed; private details suppressed.", file=sys.stderr)
         sys.exit(1)
