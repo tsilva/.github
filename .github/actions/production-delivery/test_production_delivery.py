@@ -597,10 +597,35 @@ class SharedBoundaryTests(unittest.TestCase):
             if other["repository"] != "tsilva/reshoot":
                 self.assertFalse((private | public) & set(other["secretNames"]))
 
-    def test_mapping_has_seventeen_separate_fixed_sources_and_destinations(self):
-        self.assertEqual(len(self.apps), 17)
-        self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 17)
-        self.assertEqual(len({v["vercelProjectId"] for v in self.apps.values()}), 17)
+    def test_yomiru_archive_configuration_cannot_expose_credentials(self):
+        public = {"SOURCE_ARCHIVE_R2_BUCKET_NAME", "SOURCE_ARCHIVE_R2_ENDPOINT"}
+        private = {"SOURCE_ARCHIVE_R2_ACCESS_KEY_ID", "SOURCE_ARCHIVE_R2_SECRET_ACCESS_KEY"}
+        archive = self.apps["1462854175"]
+        self.assertEqual(archive["repository"], "tsilva/yomiru")
+        self.assertEqual(archive["infisicalProjectId"], "e7b4ba2e-2663-4b69-9975-0b5b7df0e52f")
+        self.assertEqual(archive["vercelProjectId"], "prj_XOoHoudrOS7bHy5wrqPSGJivsKXM")
+        self.assertEqual(set(archive["secretNames"]), public | private)
+        self.assertEqual(d.config_names(archive), public)
+        for key in private:
+            with self.assertRaises(d.DeliveryError):
+                d.config_names(archive | {"configNames": sorted(public | {key})})
+        with self.assertRaises(d.DeliveryError):
+            d.config_names(archive | {"repository": "tsilva/other"})
+
+    def test_yomiru_shared_job_can_only_sync(self):
+        with (
+            patch.object(d.sys, "argv", ["delivery", "deploy"]),
+            patch.object(d, "configuration", return_value=self.apps["1462854175"]),
+            patch.object(d, "context") as context,
+            self.assertRaisesRegex(d.DeliveryError, "sync only"),
+        ):
+            d.main()
+        context.assert_not_called()
+
+    def test_mapping_has_eighteen_separate_fixed_sources_and_destinations(self):
+        self.assertEqual(len(self.apps), 18)
+        self.assertEqual(len({v["infisicalProjectId"] for v in self.apps.values()}), 18)
+        self.assertEqual(len({v["vercelProjectId"] for v in self.apps.values()}), 18)
         self.assertFalse({"GITHUB_PRODUCTION_DISPATCH_TOKEN", "INFISICAL_WEBHOOK_SIGNING_KEYS"} & set(self.config["secretNames"]))
         for key, app in self.apps.items():
             self.assertEqual(key, str(app["githubRepositoryId"]))

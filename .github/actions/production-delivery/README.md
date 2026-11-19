@@ -110,7 +110,7 @@ need an additional identity, service credential, webhook service or GitHub App.
 The reader must require all of these signed OIDC claims server-side:
 
 - `repository_owner_id`: `26742`
-- `repository_id`: the 17 reviewed IDs in `apps.json`
+- `repository_id`: the 18 reviewed IDs in `apps.json`
 - `ref`: `refs/heads/main`
 - `workflow_ref`: the approved caller production-delivery paths on main
 - `job_workflow_ref`: the shared workflow path at its reviewed full commit SHA
@@ -123,7 +123,7 @@ name/ID, environment, exact SHA and the actual `workflow_run` or
 `workflow_dispatch` event claim before login. The local JWT
 parser does not replace Infisical's signature verification or trust policy.
 
-The published map includes 17 application vaults. The machine identity uses
+The published map includes 18 application vaults. The machine identity uses
 shared reader grants; isolation depends on the trusted job and server-side
 reusable-workflow pin. Retiring a mapping also requires separately reconciling
 reader grants and OIDC policy: a map edit cannot revoke access or change an
@@ -134,6 +134,11 @@ Private credentials are written only to Production Secret variables. Explicit
 public configuration uses Production Config variables. Require Separate Values
 remains enabled; Preview and Development are never overwritten. The relay's own
 credentials must be in a separate vault inaccessible to the application reader.
+
+Yomiru syncs its four private source archive settings from its dedicated
+Production vault. The bucket name and endpoint are Config variables, and the
+access key ID and secret access key are Secret variables. Its deployment uses
+the existing Yomiru release route after successful synchronization.
 
 Reshoot's allowlist includes its Production `NEON_REALTIME_URL` as public
 configuration and `NEON_REALTIME_SECRET` as a private Secret. These values come

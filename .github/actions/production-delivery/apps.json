@@ -435,5 +435,26 @@
     "productionDomains": [
       "tubescribe.tsilva.eu"
     ]
+  },
+  "1462854175": {
+    "repository": "tsilva/yomiru",
+    "githubRepositoryId": 1462854175,
+    "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
+    "infisicalProjectId": "e7b4ba2e-2663-4b69-9975-0b5b7df0e52f",
+    "secretNames": [
+      "SOURCE_ARCHIVE_R2_ENDPOINT",
+      "SOURCE_ARCHIVE_R2_BUCKET_NAME",
+      "SOURCE_ARCHIVE_R2_ACCESS_KEY_ID",
+      "SOURCE_ARCHIVE_R2_SECRET_ACCESS_KEY"
+    ],
+    "configNames": [
+      "SOURCE_ARCHIVE_R2_ENDPOINT",
+      "SOURCE_ARCHIVE_R2_BUCKET_NAME"
+    ],
+    "destination": "vercel",
+    "vercelProjectId": "prj_XOoHoudrOS7bHy5wrqPSGJivsKXM",
+    "vercelProjectName": "yomiru",
+    "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
+    "syncOnly": true
   }
 }

@@ -300,6 +300,8 @@ def config_names(config):
         "SENTRY_TRACES_SAMPLE_RATE",
         "TUBESCRIBE_PUBLIC_ORIGIN",
     }
+    if config.get("githubRepositoryId") == 1462854175 and config.get("repository") == "tsilva/yomiru":
+        allowed.update({"SOURCE_ARCHIVE_R2_BUCKET_NAME", "SOURCE_ARCHIVE_R2_ENDPOINT"})
     if (
         not isinstance(names, list)
         or any(not isinstance(name, str) for name in names)
@@ -815,6 +817,8 @@ def main():
     if sys.argv[1:] not in (["sync"], ["deploy"], ["check"], ["worker-health"], ["complete"]):
         raise DeliveryError("Use only the fixed check, sync, deploy or complete operation.")
     config = configuration()
+    if config.get("syncOnly") and sys.argv[1] not in ("check", "sync"):
+        raise DeliveryError("This caller is approved for Production configuration sync only.")
     sha = context(config)
     if required("GITHUB_EVENT_NAME") == "repository_dispatch" and sys.argv[1] not in (
         "check",
