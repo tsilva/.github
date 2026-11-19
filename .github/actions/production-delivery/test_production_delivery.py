@@ -3,6 +3,7 @@
 import importlib.util
 import os
 import unittest
+from urllib.parse import parse_qs, urlsplit
 from pathlib import Path
 from unittest.mock import patch
 
@@ -235,6 +236,16 @@ class DeliveryTests(unittest.TestCase):
         with patch.object(d, "request") as req:
             self.assertEqual(d.infisical_secrets({"secretNames": []}), {})
             req.assert_not_called()
+
+    def test_invalid_source_paths_never_start_authentication(self):
+        for paths in ([], {"OTHER": "/fixed"}, {"SENTRY_AUTH_TOKEN": "/../other"}):
+            with (
+                self.subTest(paths=paths),
+                patch.object(d, "workflow_oidc") as oidc,
+            ):
+                with self.assertRaises(d.DeliveryError):
+                    d.infisical_secrets(self.config | {"secretPaths": paths})
+                oidc.assert_not_called()
 
     def test_missing_source_names_the_key_without_exposing_provider_details(self):
         env = {
@@ -550,7 +561,7 @@ class SharedBoundaryTests(unittest.TestCase):
                 with self.subTest(event=event), self.assertRaises(d.DeliveryError):
                     d.validate_oidc(self.jwt(claims | {"event_name": event}), self.config)
 
-    def test_reshoot_realtime_keeps_the_sealing_key_private(self):
+    def test_reshoot_realtime_keeps_its_root_source_and_sealing_key_private(self):
         app = self.apps["1317499522"]
         self.assertEqual(app["repository"], "tsilva/reshoot")
         self.assertEqual(app["infisicalProjectId"], "05231e99-a5e4-4d81-bbae-ea17a054ae54")
@@ -558,11 +569,49 @@ class SharedBoundaryTests(unittest.TestCase):
         self.assertTrue({"NEON_REALTIME_URL", "NEON_REALTIME_SECRET"} <= set(app["secretNames"]))
         self.assertIn("NEON_REALTIME_URL", d.config_names(app))
         self.assertNotIn("NEON_REALTIME_SECRET", d.config_names(app))
+        self.assertNotIn("secretPaths", app)
         with self.assertRaises(d.DeliveryError):
             d.config_names(app | {"configNames": app["configNames"] + ["NEON_REALTIME_SECRET"]})
         for other in self.apps.values():
-            if other["repository"] != "tsilva/reshoot":
+            if other["repository"] not in {"tsilva/reshoot", "tsilva/tubescribe"}:
                 self.assertFalse({"NEON_REALTIME_URL", "NEON_REALTIME_SECRET"} & set(other["secretNames"]))
+
+    def test_tubescribe_fetches_realtime_only_from_its_pinned_production_folder(self):
+        app = self.apps["1411588422"]
+        paths = {
+            "NEON_REALTIME_SECRET": "/neon-realtime",
+            "NEON_REALTIME_URL": "/neon-realtime",
+            "TUBESCRIBE_PUBLIC_ORIGIN": "/",
+        }
+        self.assertEqual(app["repository"], "tsilva/tubescribe")
+        self.assertEqual(app["infisicalProjectId"], "1f9874ad-12bc-44a6-b0aa-59027a494b70")
+        self.assertEqual(app["vercelProjectId"], "prj_2O9aw5ukOM9mfDR1wSRM90sewBih")
+        self.assertEqual(d.config_names(app), {"NEON_REALTIME_URL", "TUBESCRIBE_PUBLIC_ORIGIN"})
+
+        def respond(method, url, *args, **kwargs):
+            if method == "POST":
+                return {"accessToken": "synthetic-access"}
+            parsed = urlsplit(url)
+            name = parsed.path.rsplit("/", 1)[-1]
+            query = parse_qs(parsed.query)
+            self.assertEqual(query["secretPath"], [paths.pop(name)])
+            self.assertEqual(query["projectId"], [app["infisicalProjectId"]])
+            self.assertEqual(query["environment"], ["prod"])
+            self.assertEqual(query["includeImports"], ["false"])
+            self.assertEqual(query["expandSecretReferences"], ["false"])
+            return {"secret": {
+                "secretKey": name, "secretValue": "synthetic-value",
+                "workspace": app["infisicalProjectId"], "environment": "prod", "type": "shared",
+            }}
+
+        with (
+            patch.dict(os.environ, self.env, clear=True),
+            patch.object(d, "workflow_oidc", return_value="synthetic-oidc"),
+            patch.object(d, "mask"),
+            patch.object(d, "request", side_effect=respond),
+        ):
+            self.assertEqual(set(d.infisical_secrets(app)), set(app["secretNames"]))
+        self.assertEqual(paths, {})
 
     def test_reshoot_native_clerk_keys_are_excluded_from_secret_sync(self):
         app = self.apps["1317499522"]

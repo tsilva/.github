@@ -422,9 +422,16 @@
     "identityId": "672c01c3-c025-40f9-b89b-5abcc03e8261",
     "infisicalProjectId": "1f9874ad-12bc-44a6-b0aa-59027a494b70",
     "secretNames": [
+      "NEON_REALTIME_SECRET",
+      "NEON_REALTIME_URL",
       "TUBESCRIBE_PUBLIC_ORIGIN"
     ],
+    "secretPaths": {
+      "NEON_REALTIME_SECRET": "/neon-realtime",
+      "NEON_REALTIME_URL": "/neon-realtime"
+    },
     "configNames": [
+      "NEON_REALTIME_URL",
       "TUBESCRIBE_PUBLIC_ORIGIN"
     ],
     "destination": "vercel",

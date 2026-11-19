@@ -188,6 +188,14 @@ def infisical_secrets(config):
         not re.fullmatch(r"[A-Z][A-Z0-9_]*", name) for name in names
     ):
         raise DeliveryError("Invalid pinned source allowlist; no writes.")
+    paths = config.get("secretPaths", {})
+    if not isinstance(paths, dict) or any(
+        name not in names
+        or not isinstance(path, str)
+        or not re.fullmatch(r"(?:/[A-Za-z0-9_-]+)+", path)
+        for name, path in paths.items()
+    ):
+        raise DeliveryError("Invalid pinned source paths; no writes.")
     if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch":
         raise DeliveryError("Completion events cannot access Infisical or synchronize secrets.")
     jwt = workflow_oidc(config)
@@ -198,19 +206,19 @@ def infisical_secrets(config):
     )
     token = login["accessToken"]
     mask(token)
-    query = urllib.parse.urlencode(
-        {
-            "projectId": config["infisicalProjectId"],
-            "environment": "prod",
-            "secretPath": "/",
-            "type": "shared",
-            "viewSecretValue": "true",
-            "expandSecretReferences": "false",
-            "includeImports": "false",
-        }
-    )
     values = {}
     for name in names:
+        query = urllib.parse.urlencode(
+            {
+                "projectId": config["infisicalProjectId"],
+                "environment": "prod",
+                "secretPath": paths.get(name, "/"),
+                "type": "shared",
+                "viewSecretValue": "true",
+                "expandSecretReferences": "false",
+                "includeImports": "false",
+            }
+        )
         try:
             secret = request("GET", INFISICAL + "/api/v4/secrets/" + name + "?" + query, token)[
                 "secret"

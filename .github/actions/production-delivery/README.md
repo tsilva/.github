@@ -153,6 +153,13 @@ Reshoot's native Clerk/Vercel integration owns `CLERK_SECRET_KEY` and
 the Infisical source policy and are excluded from this sync. The integration
 supplies distinct Production and Preview keys; delivery must not overwrite them.
 
+TubeScribe reads `NEON_REALTIME_URL` and `NEON_REALTIME_SECRET` from the fixed
+Production `/neon-realtime` folder in its existing vault. The URL is public
+Config and the sealing key is a write-only Secret. Its public origin still
+comes from the vault root. Only the pinned map can select another source
+folder for an allowlisted key. The existing Clerk and separate runtime
+bindings stay outside synchronization.
+
 ## Verify and maintain
 
 Run `python3 -m unittest discover -s .github/actions/production-delivery -p 'test_*.py'`
