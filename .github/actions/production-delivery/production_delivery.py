@@ -565,8 +565,8 @@ def event_driven(config):
     # Only reviewed direct-delivery callers, never prebuilt or Worker pipelines.
     approved = {
         (1411588422, "tsilva/tubescribe"): ["tubescribe.tsilva.eu"],
-        (1325113680, "tsilva/biginjapan"): ["biginjapan-bay.vercel.app"],
-        (1420482088, "tsilva/shelfer"): ["shelfer.tsilva.eu", "shelfer-tau.vercel.app"],
+        (1325113680, "tsilva/biginjapan"): ["biginjapan.tsilva.eu"],
+        (1420482088, "tsilva/shelfer"): ["shelfer.tsilva.eu"],
     }.get((config.get("githubRepositoryId"), config.get("repository")))
     return (
         approved is not None

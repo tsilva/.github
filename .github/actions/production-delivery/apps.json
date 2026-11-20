@@ -334,8 +334,7 @@
     "configNames": [],
     "eventDrivenDelivery": true,
     "productionDomains": [
-      "shelfer.tsilva.eu",
-      "shelfer-tau.vercel.app"
+      "shelfer.tsilva.eu"
     ]
   },
   "1186449069": {
@@ -413,7 +412,7 @@
     "vercelTeamId": "team_eE2Iv7IMqPOx8ZVN2xNfR2f0",
     "eventDrivenDelivery": true,
     "productionDomains": [
-      "biginjapan-bay.vercel.app"
+      "biginjapan.tsilva.eu"
     ]
   },
   "1411588422": {

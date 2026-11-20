@@ -48,8 +48,8 @@ installation to the trusted job.
 
 TubeScribe, Biginjapan and Shelfer are enabled by immutable repository ID in the
 pinned map. Their Production domains are fixed in trusted code and independently
-verified against Vercel. Biginjapan uses its existing `biginjapan-bay.vercel.app`
-alias; Shelfer verifies both `shelfer.tsilva.eu` and `shelfer-tau.vercel.app`.
+verified against Vercel. Big in Japan verifies `biginjapan.tsilva.eu`. Shelfer
+verifies `shelfer.tsilva.eu`.
 Prebuilt and Worker callers retain their existing verification and `sync_only`
 contracts, including staged checks, source maps and promotion gates.
 No caller input selects an event mode, runner, vault, project, domain or command.
