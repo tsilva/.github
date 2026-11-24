@@ -135,10 +135,11 @@ public configuration uses Production Config variables. Require Separate Values
 remains enabled; Preview and Development are never overwritten. The relay's own
 credentials must be in a separate vault inaccessible to the application reader.
 
-Yomiru syncs its four private source archive settings from its dedicated
-Production vault. The bucket name and endpoint are Config variables, and the
-access key ID and secret access key are Secret variables. Its deployment uses
-the existing Yomiru release route after successful synchronization.
+Yomiru syncs its source archive and Practice chat settings from its dedicated
+Production vault. The bucket name, endpoint and `YOMIRU_OPENROUTER_CHAT_MODEL`
+are Config variables. The archive access key ID, archive secret access key and
+`OPENROUTER_API_KEY` are Secret variables. Its deployment uses the existing
+Yomiru release route after successful synchronization.
 
 Reshoot's allowlist includes its Production `NEON_REALTIME_URL` as public
 configuration and `NEON_REALTIME_SECRET` as a private Secret. These values come

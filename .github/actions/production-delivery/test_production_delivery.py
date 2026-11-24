@@ -646,20 +646,27 @@ class SharedBoundaryTests(unittest.TestCase):
             if other["repository"] != "tsilva/reshoot":
                 self.assertFalse((private | public) & set(other["secretNames"]))
 
-    def test_yomiru_archive_configuration_cannot_expose_credentials(self):
-        public = {"SOURCE_ARCHIVE_R2_BUCKET_NAME", "SOURCE_ARCHIVE_R2_ENDPOINT"}
-        private = {"SOURCE_ARCHIVE_R2_ACCESS_KEY_ID", "SOURCE_ARCHIVE_R2_SECRET_ACCESS_KEY"}
-        archive = self.apps["1462854175"]
-        self.assertEqual(archive["repository"], "tsilva/yomiru")
-        self.assertEqual(archive["infisicalProjectId"], "e7b4ba2e-2663-4b69-9975-0b5b7df0e52f")
-        self.assertEqual(archive["vercelProjectId"], "prj_XOoHoudrOS7bHy5wrqPSGJivsKXM")
-        self.assertEqual(set(archive["secretNames"]), public | private)
-        self.assertEqual(d.config_names(archive), public)
+    def test_yomiru_configuration_cannot_expose_credentials(self):
+        public = {
+            "SOURCE_ARCHIVE_R2_BUCKET_NAME", "SOURCE_ARCHIVE_R2_ENDPOINT",
+            "YOMIRU_OPENROUTER_CHAT_MODEL",
+        }
+        private = {
+            "SOURCE_ARCHIVE_R2_ACCESS_KEY_ID", "SOURCE_ARCHIVE_R2_SECRET_ACCESS_KEY",
+            "OPENROUTER_API_KEY",
+        }
+        yomiru = self.apps["1462854175"]
+        self.assertEqual(yomiru["repository"], "tsilva/yomiru")
+        self.assertEqual(yomiru["infisicalProjectId"], "e7b4ba2e-2663-4b69-9975-0b5b7df0e52f")
+        self.assertEqual(yomiru["vercelProjectId"], "prj_XOoHoudrOS7bHy5wrqPSGJivsKXM")
+        self.assertEqual(set(yomiru["secretNames"]), public | private)
+        self.assertEqual(d.config_names(yomiru), public)
         for key in private:
             with self.assertRaises(d.DeliveryError):
-                d.config_names(archive | {"configNames": sorted(public | {key})})
-        with self.assertRaises(d.DeliveryError):
-            d.config_names(archive | {"repository": "tsilva/other"})
+                d.config_names(yomiru | {"configNames": sorted(public | {key})})
+        for identity in ({"repository": "tsilva/other"}, {"githubRepositoryId": 123}):
+            with self.assertRaises(d.DeliveryError):
+                d.config_names(yomiru | identity | {"configNames": ["YOMIRU_OPENROUTER_CHAT_MODEL"]})
 
     def test_yomiru_shared_job_can_only_sync(self):
         with (

@@ -309,7 +309,11 @@ def config_names(config):
         "TUBESCRIBE_PUBLIC_ORIGIN",
     }
     if config.get("githubRepositoryId") == 1462854175 and config.get("repository") == "tsilva/yomiru":
-        allowed.update({"SOURCE_ARCHIVE_R2_BUCKET_NAME", "SOURCE_ARCHIVE_R2_ENDPOINT"})
+        allowed.update({
+            "SOURCE_ARCHIVE_R2_BUCKET_NAME",
+            "SOURCE_ARCHIVE_R2_ENDPOINT",
+            "YOMIRU_OPENROUTER_CHAT_MODEL",
+        })
     if (
         not isinstance(names, list)
         or any(not isinstance(name, str) for name in names)
