@@ -302,6 +302,9 @@
     "infisicalProjectId": "4a62d836-fb3e-4b90-ad02-403cef183dc2",
     "secretNames": [
       "NEXT_PUBLIC_SENTRY_DSN",
+      "SCUMMWEB_PRIVACY_REQUEST_FROM",
+      "SCUMMWEB_PRIVACY_REQUEST_RESEND_API_KEY",
+      "SCUMMWEB_PRIVACY_REQUEST_TO",
       "SENTRY_AUTH_TOKEN",
       "SENTRY_DSN",
       "SENTRY_ORG",
