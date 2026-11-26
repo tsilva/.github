@@ -1,0 +1,64 @@
+name: Node and pnpm CI
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js release with bundled Corepack, such as 22 or 24
+        type: string
+        default: "22"
+      working-directory:
+        description: Directory containing package.json and pnpm-lock.yaml
+        type: string
+        default: .
+      workspace-filters:
+        description: Optional list of pnpm workspace filters, one per line
+        type: string
+        default: ""
+      timeout-minutes:
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Node and pnpm checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager-cache: false
+
+      - name: Set up pnpm from package.json
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          corepack enable pnpm
+          corepack install
+
+      - name: Install from lockfile
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          PNPM_WORKSPACE_FILTERS: ${{ inputs.workspace-filters }}
+        run: |
+          install_args=(--frozen-lockfile --ignore-scripts)
+          while IFS= read -r filter; do
+            if [[ -n "$filter" ]]; then
+              install_args+=(--filter "$filter")
+            fi
+          done <<< "$PNPM_WORKSPACE_FILTERS"
+          pnpm install "${install_args[@]}"
+
+      - name: Run repository checks
+        uses: ./.github/actions/node-pnpm-checks

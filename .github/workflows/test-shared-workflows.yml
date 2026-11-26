@@ -1,0 +1,44 @@
+name: Test shared workflows
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint 1.7.12
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --show-error --silent --location --retry 3 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
+  node-pnpm:
+    uses: ./.github/workflows/node-pnpm-ci.yml
+    with:
+      node-version: "22"
+      working-directory: .github/fixtures/node-pnpm
+      workspace-filters: shared-node-ci-fixture
+      timeout-minutes: 5
+
+  dependency-review:
+    uses: ./.github/workflows/dependency-review.yml
+
+  secret-scanning:
+    uses: ./.github/workflows/secret-scanning.yml

@@ -1,5 +1,35 @@
 # Shared workflow caller guide
 
+## Node and pnpm CI
+
+Add a composite action at `.github/actions/node-pnpm-checks/action.yml` in the
+caller repository. Put that repository's lint, tests, and build commands in
+the action. The reusable workflow checks out the caller's revision and uses
+Corepack to install the pnpm version declared in `packageManager` in
+`package.json`. It installs dependencies with `--frozen-lockfile --ignore-scripts`
+before calling the action on the same runner.
+
+```yaml
+jobs:
+  application:
+    uses: tsilva/.github/.github/workflows/node-pnpm-ci.yml@main
+    with:
+      node-version: "22"
+```
+
+Choose a Node release that bundles Corepack, such as Node 22 or 24.
+`working-directory` defaults to the repository root and selects the directory
+containing `package.json` and `pnpm-lock.yaml`. Set step working directories in
+the composite action when its commands run in a subdirectory. Set
+`workspace-filters` to a newline-delimited list if CI installs a subset of the
+workspace packages. `timeout-minutes` defaults to 30. The checks run with
+read-only repository access.
+
+The [test caller](../.github/workflows/test-shared-workflows.yml) runs
+`actionlint` and calls the Node, Dependency Review, and secret-scanning workflows
+from the proposed revision on pull requests. The Node fixture checks that
+the declared toolchain was installed and the locked workspace dependency is usable.
+
 ## Dependency review and secret scanning
 
 Call `dependency-review.yml@main` as a job from CI triggered by `pull_request`,

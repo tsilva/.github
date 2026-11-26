@@ -1,0 +1,11 @@
+{
+  "name": "shared-node-ci-fixture",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "dependencies": {
+    "fixture-dependency": "workspace:*"
+  },
+  "scripts": {
+    "preinstall": "node -e \"throw new Error('CI must skip install scripts')\""
+  }
+}

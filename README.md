@@ -7,7 +7,7 @@
 </p>
 
 Call these shared workflows from a repository's own GitHub Actions workflow.
-They cover Python CI and release publishing, website audits, and approved
+They cover Node and Python CI, release publishing, website audits, and approved
 production delivery.
 
 ## Reusable workflows
@@ -16,6 +16,7 @@ production delivery.
 |---|---|
 | `ci.yml` | Callable Python CI interface for repositories with a uv project |
 | `test.yml` | Install with uv and run pytest |
+| `node-pnpm-ci.yml` | Set up Node and pnpm, install from the lockfile, and run the caller's checks |
 | `dependency-review.yml` | Check introduced dependencies for high or critical vulnerabilities |
 | `secret-scanning.yml` | Scan added commits or checked-out files for committed secrets |
 | `release.yml` | Compose testing with a GitHub release or PyPI publication |
@@ -43,6 +44,7 @@ Set `publish_to_pypi: false` under `with` for a GitHub-only release. Pin a
 reviewed commit SHA when you need a reproducible caller.
 
 - [Lighthouse audits](docs/caller-guide.md#lighthouse-ci)
+- [Node and pnpm CI](docs/caller-guide.md#node-and-pnpm-ci)
 - [Dependency review and secret scanning](docs/caller-guide.md#dependency-review-and-secret-scanning)
 - [Trusted production delivery](docs/caller-guide.md#trusted-production-delivery)
 - [README tagline synchronization](docs/caller-guide.md#readme-tagline-syncing)
