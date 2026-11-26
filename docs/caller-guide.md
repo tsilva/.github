@@ -1,5 +1,35 @@
 # Shared workflow caller guide
 
+## Dependency review and secret scanning
+
+Call `dependency-review.yml@main` as a job from CI triggered by `pull_request`,
+`push`, or `merge_group`. It uses the caller's event to select the two commits
+and fails on newly introduced high or critical advisories in runtime,
+development, or unclassified dependencies.
+
+```yaml
+jobs:
+  review-dependencies:
+    uses: tsilva/.github/.github/workflows/dependency-review.yml@main
+```
+
+Call `secret-scanning.yml@main` from a workflow in the repository you want to
+scan. Set `on: [push, pull_request]` on the caller to scan branch pushes and pull
+requests. The scanner uses the caller's commit range, falls back to reachable
+branch history if the previous push tip is unavailable, and scans checked-out
+files for other events. Pass `full_history: true` for an explicit full-history
+scan. The job summary reports file locations and rule names with matches withheld.
+
+```yaml
+jobs:
+  scan:
+    uses: tsilva/.github/.github/workflows/secret-scanning.yml@main
+```
+
+Callers grant `contents: read`. Each caller's next run loads the current shared
+workflow from `main`. A merge here runs this repository's checks and leaves
+caller scheduling to their own triggers.
+
 ## Lighthouse CI
 
 Add a caller to the website repository and set `url` to its public production

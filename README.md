@@ -16,6 +16,8 @@ production delivery.
 |---|---|
 | `ci.yml` | Callable Python CI interface for repositories with a uv project |
 | `test.yml` | Install with uv and run pytest |
+| `dependency-review.yml` | Check introduced dependencies for high or critical vulnerabilities |
+| `secret-scanning.yml` | Scan added commits or checked-out files for committed secrets |
 | `release.yml` | Compose testing with a GitHub release or PyPI publication |
 | `publish-pypi.yml` | Build, release, and publish through PyPI trusted publishing |
 | `create-release.yml` | Create a GitHub release without publishing a Python package |
@@ -41,6 +43,7 @@ Set `publish_to_pypi: false` under `with` for a GitHub-only release. Pin a
 reviewed commit SHA when you need a reproducible caller.
 
 - [Lighthouse audits](docs/caller-guide.md#lighthouse-ci)
+- [Dependency review and secret scanning](docs/caller-guide.md#dependency-review-and-secret-scanning)
 - [Trusted production delivery](docs/caller-guide.md#trusted-production-delivery)
 - [README tagline synchronization](docs/caller-guide.md#readme-tagline-syncing)
 
