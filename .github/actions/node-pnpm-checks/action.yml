@@ -1,0 +1,14 @@
+name: Verify Node and pnpm fixture
+description: Verify the shared workflow set up the toolchain and linked the workspace dependency.
+
+runs:
+  using: composite
+  steps:
+    - name: Check the toolchain and installed package
+      shell: bash
+      working-directory: .github/fixtures/node-pnpm
+      run: |
+        test "$(pnpm --version)" = 10.27.0
+        node -e 'const assert = require("node:assert/strict");
+          assert.equal(process.versions.node.split(".")[0], "22");
+          assert.equal(require("fixture-dependency").name, "fixture-dependency");'
